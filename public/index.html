@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="주식">
+  <meta name="theme-color" content="#0d1117">
+  <title>주식 대시보드</title>
+  <link rel="manifest" href="/manifest.json">
+  <link rel="apple-touch-icon" href="/icons/icon-192.png">
+  <link rel="stylesheet" href="/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+</head>
+<body>
+
+<!-- 설정 모달 (첫 실행 시) -->
+<div id="setupModal" class="setup-modal hidden">
+  <div class="setup-box">
+    <div class="setup-icon">📈</div>
+    <h2>주식 대시보드</h2>
+    <p>PC 서버 주소를 입력하세요<br><small>ngrok URL 또는 로컬 네트워크 주소</small></p>
+    <input id="serverUrlInput" type="url" placeholder="https://xxxx.ngrok-free.app" autocomplete="off">
+    <div class="setup-examples">
+      <span>예시:</span>
+      <code>https://abc123.ngrok-free.app</code>
+    </div>
+    <button id="saveServerBtn" class="btn-primary">연결</button>
+    <button id="useLocalBtn" class="btn-secondary">로컬(localhost:5000) 사용</button>
+  </div>
+</div>
+
+<!-- 메인 앱 -->
+<div id="mainApp" class="hidden">
+
+  <!-- 탑 바 -->
+  <header class="topbar">
+    <div class="topbar-title">📈 주식</div>
+    <div class="topbar-right">
+      <div id="connDot" class="conn-dot offline" title="서버 연결 상태"></div>
+      <button class="icon-btn" onclick="openSettings()" title="설정">⚙️</button>
+    </div>
+  </header>
+
+  <!-- 탭 네비게이션 -->
+  <nav class="bottom-nav">
+    <button class="nav-btn active" data-tab="home">🏠<span>홈</span></button>
+    <button class="nav-btn" data-tab="screener">🔥<span>급등</span></button>
+    <button class="nav-btn" data-tab="value">💰<span>저PER</span></button>
+    <button class="nav-btn" data-tab="watchlist">⭐<span>관심</span></button>
+  </nav>
+
+  <!-- 홈 탭 -->
+  <div id="tab-home" class="tab-content active">
+    <!-- 시장 선택 -->
+    <div class="mkt-toggle">
+      <button class="mkt-btn active" data-m="us">🇺🇸 미국</button>
+      <button class="mkt-btn" data-m="kr">🇰🇷 한국</button>
+    </div>
+
+    <!-- 검색 -->
+    <div class="search-wrap">
+      <input id="searchInput" type="text" placeholder="종목명 또는 코드 검색..." autocomplete="off">
+      <div id="searchResults" class="drop-results hidden"></div>
+    </div>
+
+    <!-- 종목 카드 -->
+    <div id="stockCard" class="stock-card hidden">
+      <div class="stock-card-header">
+        <div>
+          <div id="scName" class="sc-name"></div>
+          <div id="scCode" class="sc-code"></div>
+        </div>
+        <div class="sc-price-area">
+          <div id="scPrice" class="sc-price"></div>
+          <div id="scChange" class="sc-change"></div>
+        </div>
+      </div>
+      <div class="sc-metrics">
+        <div class="metric"><div class="m-label">시가</div><div id="mOpen" class="m-val"></div></div>
+        <div class="metric"><div class="m-label">고가</div><div id="mHigh" class="m-val"></div></div>
+        <div class="metric"><div class="m-label">저가</div><div id="mLow" class="m-val"></div></div>
+        <div class="metric"><div class="m-label">거래량</div><div id="mVol" class="m-val"></div></div>
+      </div>
+      <div class="chart-wrap"><canvas id="priceChart"></canvas></div>
+      <button id="addWlBtn" class="btn-outline">⭐ 관심종목 추가</button>
+    </div>
+
+    <div id="homeEmpty" class="empty-msg">
+      <div>🔍</div>
+      <p>종목을 검색하세요</p>
+      <p class="sub">미국: AAPL, TSLA, NVDA<br>한국: 005930 (삼성전자)</p>
+    </div>
+  </div>
+
+  <!-- 급등 스크리너 탭 -->
+  <div id="tab-screener" class="tab-content hidden">
+    <div class="tab-header">
+      <h2>🔥 급등 스크리너</h2>
+      <div class="tab-controls">
+        <div class="mkt-toggle-sm">
+          <button class="mkt-btn-sm active" data-m="us">🇺🇸</button>
+          <button class="mkt-btn-sm" data-m="kr">🇰🇷</button>
+        </div>
+        <button id="scRunBtn" class="btn-primary-sm">▶ 실행</button>
+        <button id="scRefBtn" class="btn-outline-sm">↺</button>
+      </div>
+    </div>
+    <div id="scLoading" class="loading-box hidden"><div class="spinner"></div><p>분석 중... (30~60초)</p></div>
+    <div id="scList" class="result-list hidden"></div>
+    <div id="scEmpty" class="empty-msg hidden"><p>조건에 맞는 종목 없음</p></div>
+  </div>
+
+  <!-- 저PER 탭 -->
+  <div id="tab-value" class="tab-content hidden">
+    <div class="tab-header">
+      <h2>💰 저평가 PER Top 50</h2>
+      <div class="tab-controls">
+        <div class="mkt-toggle-sm">
+          <button class="per-btn-sm active" data-m="us">🇺🇸</button>
+          <button class="per-btn-sm" data-m="kr">🇰🇷</button>
+        </div>
+        <button id="perRunBtn" class="btn-primary-sm">▶ 실행</button>
+        <button id="perRefBtn" class="btn-outline-sm">↺</button>
+      </div>
+    </div>
+    <div id="perLoading" class="loading-box hidden"><div class="spinner"></div><p>PER 수집 중... (60~90초)</p></div>
+    <div id="perList" class="result-list hidden"></div>
+    <div id="perEmpty" class="empty-msg hidden"><p>데이터를 가져올 수 없습니다</p></div>
+  </div>
+
+  <!-- 관심종목 탭 -->
+  <div id="tab-watchlist" class="tab-content hidden">
+    <div class="tab-header">
+      <h2>⭐ 관심종목</h2>
+      <div class="mkt-toggle-sm">
+        <button class="wl-mkt-btn active" data-m="us">🇺🇸 미국</button>
+        <button class="wl-mkt-btn" data-m="kr">🇰🇷 한국</button>
+      </div>
+    </div>
+    <div id="wlList" class="result-list"></div>
+    <div id="wlEmpty" class="empty-msg hidden"><p>관심종목이 없습니다<br><small>홈에서 종목 검색 후 추가하세요</small></p></div>
+  </div>
+
+</div><!-- /mainApp -->
+
+<script src="/app.js"></script>
+</body>
+</html>
