@@ -3,7 +3,7 @@
   --bg: #0d1117; --surface: #161b22; --border: #30363d;
   --text: #e6edf3; --muted: #8b949e;
   --accent: #58a6ff; --green: #3fb950; --red: #f85149; --gold: #d29922;
-  --nav-h: 64px; --top-h: 52px;
+  --nav-w: 64px; --top-h: 52px;
 }
 html, body { height: 100%; background: var(--bg); color: var(--text); font-family: 'Segoe UI', -apple-system, sans-serif; font-size: 15px; overflow: hidden; }
 
@@ -31,12 +31,14 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
 .btn-outline-sm  { padding: 8px 12px; background: transparent; border: 1px solid var(--border); border-radius: 8px; color: var(--muted); cursor: pointer; }
 
 /* ── 메인 앱 레이아웃 ── */
-#mainApp { display: flex; flex-direction: column; height: 100vh; }
+#mainApp { display: block; height: 100vh; }
 
+/* 탑 바 */
 .topbar {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 100;
   height: var(--top-h); background: var(--surface); border-bottom: 1px solid var(--border);
-  display: flex; align-items: center; justify-content: space-between; padding: 0 16px;
-  flex-shrink: 0;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 16px 0 calc(var(--nav-w) + 16px);
 }
 .topbar-title { font-size: 18px; font-weight: 700; }
 .topbar-right { display: flex; align-items: center; gap: 10px; }
@@ -45,26 +47,30 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
 .conn-dot.offline { background: var(--muted); }
 .icon-btn { background: none; border: none; color: var(--text); font-size: 20px; cursor: pointer; padding: 4px; }
 
-/* 탭 콘텐츠 영역 */
-.tab-content {
-  flex: 1; overflow-y: auto; padding: 16px;
-  padding-bottom: calc(var(--nav-h) + 16px);
-}
-.tab-content.active { display: block; }
-.tab-content.hidden  { display: none; }
-
-/* 바텀 네비 */
+/* ── 왼쪽 사이드 네비 ── */
 .bottom-nav {
-  height: var(--nav-h); background: var(--surface); border-top: 1px solid var(--border);
-  display: flex; flex-shrink: 0; position: fixed; bottom: 0; left: 0; right: 0;
+  position: fixed; left: 0; top: var(--top-h); bottom: 0; z-index: 99;
+  width: var(--nav-w); background: var(--surface); border-right: 1px solid var(--border);
+  display: flex; flex-direction: column; align-items: stretch;
   padding-bottom: env(safe-area-inset-bottom);
 }
 .nav-btn {
-  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 3px; background: none; border: none; color: var(--muted); cursor: pointer; font-size: 20px;
+  width: 100%; padding: 18px 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 5px; background: none; border: none; border-left: 3px solid transparent;
+  color: var(--muted); cursor: pointer; font-size: 22px; transition: all .15s;
 }
-.nav-btn span { font-size: 11px; }
-.nav-btn.active { color: var(--accent); }
+.nav-btn span { font-size: 10px; letter-spacing: -.3px; }
+.nav-btn.active { color: var(--accent); border-left-color: var(--accent); background: rgba(88,166,255,.07); }
+
+/* 탭 콘텐츠 영역 */
+.tab-content {
+  position: fixed; left: var(--nav-w); right: 0;
+  top: var(--top-h); bottom: 0;
+  overflow-y: auto; padding: 16px;
+}
+.tab-content.active { display: block; }
+.tab-content.hidden  { display: none; }
 
 /* ── 마켓 토글 ── */
 .mkt-toggle { display: flex; gap: 8px; margin-bottom: 14px; }

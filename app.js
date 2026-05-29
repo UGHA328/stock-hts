@@ -1,5 +1,12 @@
 /* ── 설정 ── */
 let API = localStorage.getItem("stockApiUrl") || "";
+
+function apiFetch(url, opts = {}) {
+  return fetch(url, {
+    ...opts,
+    headers: { "ngrok-skip-browser-warning": "1", ...(opts.headers || {}) },
+  });
+}
 let market = "us";
 let scMarket = "us";
 let perMkt   = "us";
@@ -43,7 +50,7 @@ function initApp() {
 async function checkConn() {
   const dot = document.getElementById("connDot");
   try {
-    await fetch(`${API}/api/kr/status`, { signal: AbortSignal.timeout(3000) });
+    await apiFetch(`${API}/api/kr/status`, { signal: AbortSignal.timeout(3000) });
     dot.className = "conn-dot online";
   } catch { dot.className = "conn-dot offline"; }
 }
@@ -127,7 +134,7 @@ async function doSearch(q) {
     ? `${API}/api/us/search?q=${encodeURIComponent(q)}`
     : `${API}/api/kr/search?q=${encodeURIComponent(q)}`;
   try {
-    const res  = await fetch(url, { signal: AbortSignal.timeout(10000) });
+    const res  = await apiFetch(url, { signal: AbortSignal.timeout(10000) });
     const data = await res.json();
     if (!data.length) { box.innerHTML = '<div class="drop-item">결과 없음</div>'; return; }
     box.innerHTML = data.map(d => {
@@ -159,8 +166,8 @@ async function selectStock(code, name) {
   const qUrl = market === "us" ? `${API}/api/us/quote/${code}` : `${API}/api/kr/quote/${code}`;
   const cUrl = market === "us" ? `${API}/api/us/chart/${code}` : `${API}/api/kr/chart/${code}`;
   const [q, c] = await Promise.all([
-    fetch(qUrl, { signal: AbortSignal.timeout(10000) }).then(r => r.json()),
-    fetch(cUrl, { signal: AbortSignal.timeout(10000) }).then(r => r.json()),
+    apiFetch(qUrl, { signal: AbortSignal.timeout(10000) }).then(r => r.json()),
+    apiFetch(cUrl, { signal: AbortSignal.timeout(10000) }).then(r => r.json()),
   ]);
 
   // 주가 헤더
@@ -225,7 +232,7 @@ async function runScreener(refresh) {
   show("scLoading"); hide("scList"); hide("scEmpty");
   const url = `${API}/api/screener/${scMarket}${refresh ? "?refresh=true" : ""}`;
   try {
-    const res  = await fetch(url, { signal: AbortSignal.timeout(120000) });
+    const res  = await apiFetch(url, { signal: AbortSignal.timeout(120000) });
     const data = await res.json();
     renderScList(data.results || []);
   } catch (e) { alert("오류: " + e.message); }
@@ -276,7 +283,7 @@ async function runPerScreener(refresh) {
   show("perLoading"); hide("perList"); hide("perEmpty");
   const url = `${API}/api/per/${perMkt}${refresh ? "?refresh=true" : ""}`;
   try {
-    const res  = await fetch(url, { signal: AbortSignal.timeout(150000) });
+    const res  = await apiFetch(url, { signal: AbortSignal.timeout(150000) });
     const data = await res.json();
     renderPerList(data.results || []);
   } catch (e) { alert("오류: " + e.message); }
