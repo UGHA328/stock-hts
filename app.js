@@ -136,9 +136,10 @@ async function doSearch(q) {
   try {
     const res  = await apiFetch(url, { signal: AbortSignal.timeout(10000) });
     const data = await res.json();
-    if (!data.length) { box.innerHTML = '<div class="drop-item">결과 없음</div>'; return; }
-    box.innerHTML = data.map(d => {
-      const name = d.name, code = d.symbol || d.code;
+    const items = Array.isArray(data) ? data.filter(d => !d.error && (d.name || d.symbol)) : [];
+    if (!items.length) { box.innerHTML = '<div class="drop-item">결과 없음</div>'; return; }
+    box.innerHTML = items.map(d => {
+      const name = d.name || d.description || "", code = d.symbol || d.code || "";
       return `<div class="drop-item" data-code="${code}" data-name="${name}">
         <div class="di-name">${name}</div><div class="di-code">${code}</div>
       </div>`;
