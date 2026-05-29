@@ -184,6 +184,19 @@ async function selectStock(code, name) {
   document.getElementById("mLow").textContent  = fmtPrice(q.low  || 0, market);
   document.getElementById("mVol").textContent  = fmtVol(q.volume || 0);
 
+  // 펀더멘털
+  const na = '<span class="f-na">-</span>';
+  const fmtX = v => v != null ? `${v.toFixed(1)}x` : na;
+  const fmtPct = v => v != null ? `${v.toFixed(2)}%` : na;
+  document.getElementById("fPer").innerHTML     = fmtX(q.per);
+  document.getElementById("fFwdPer").innerHTML  = fmtX(q.forward_per);
+  document.getElementById("fSectPer").innerHTML = fmtX(q.sector_per);
+  document.getElementById("fPbr").innerHTML     = fmtX(q.pbr);
+  document.getElementById("fRoe").innerHTML     = fmtPct(q.roe);
+  document.getElementById("fDiv").innerHTML     = fmtPct(q.div_yield);
+  const indEl = document.getElementById("fIndustry");
+  indEl.textContent = q.industry ? `📊 ${q.industry}` : "";
+
   // 차트
   if (chartInst) { chartInst.destroy(); chartInst = null; }
   if (c && !c.error) {
