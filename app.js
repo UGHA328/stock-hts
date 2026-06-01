@@ -83,91 +83,35 @@ const KR_SCREEN_LIST = [
   '001680.KS','004990.KS','024110.KS','000100.KS','002790.KS'
 ];
 
-/* ── Yahoo Finance API (CORS 프록시 경유) ── */
-const YF = 'https://query2.finance.yahoo.com';
-const PROXY = 'https://corsproxy.io/?url=';
+/* ── Flask 서버 (ngrok) ── */
+const SERVER = 'https://bucked-swaddling-revenge.ngrok-free.dev';
+const HDR = { 'ngrok-skip-browser-warning': '1' };
 
-async function yfFetch(path) {
-  const url = PROXY + encodeURIComponent(YF + path);
-  const res = await fetch(url);
+async function apiFetch(path) {
+  const res = await fetch(SERVER + path, { headers: HDR });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
+  const d = await res.json();
+  if (d.error) throw new Error(d.error);
+  return d;
 }
 
 async function fetchQuote(symbol) {
-  const [chartData, summaryData] = await Promise.all([
-    yfFetch(`/v8/finance/chart/${symbol}?interval=1d&range=5d`),
-    yfFetch(`/v10/finance/quoteSummary/${symbol}?modules=summaryDetail,defaultKeyStatistics`).catch(() => null),
-  ]);
-  const result = chartData.chart?.result?.[0];
-  if (!result) throw new Error('데이터 없음');
-  const meta = result.meta;
-  const price = meta.regularMarketPrice;
-  const prev  = meta.chartPreviousClose || meta.previousClose || price;
-  const chg   = price - prev;
-  const chgPct = prev ? (chg / prev * 100) : 0;
-  const sd = summaryData?.quoteSummary?.result?.[0]?.summaryDetail || {};
-  const ks = summaryData?.quoteSummary?.result?.[0]?.defaultKeyStatistics || {};
-  const raw = v => v?.raw ?? null;
-  return {
-    price,
-    change:     chg,
-    change_pct: chgPct,
-    open:   meta.regularMarketOpen    || 0,
-    high:   meta.regularMarketDayHigh || 0,
-    low:    meta.regularMarketDayLow  || 0,
-    volume: meta.regularMarketVolume  || 0,
-    name:   meta.shortName || meta.longName || symbol,
-    currency: meta.currency || 'USD',
-    per:         raw(sd.trailingPE),
-    fpe:         raw(sd.forwardPE),
-    pbr:         raw(sd.priceToBook),
-    eps:         raw(ks.trailingEps),
-    dividend:    sd.dividendYield?.raw ? sd.dividendYield.raw * 100 : null,
-    market_cap:  raw(sd.marketCap),
-    week52_high: raw(sd.fiftyTwoWeekHigh),
-    week52_low:  raw(sd.fiftyTwoWeekLow),
-  };
+  return apiFetch(`/quote?symbol=${encodeURIComponent(symbol)}`);
 }
 
 async function fetchChart(symbol) {
-  const data = await yfFetch(`/v8/finance/chart/${symbol}?interval=1d&range=6mo`);
-  const result = data.chart?.result?.[0];
-  if (!result) throw new Error('차트 데이터 없음');
-  const ts  = result.timestamp || [];
-  const q   = result.indicators.quote[0];
-  const dates = ts.map(t => {
-    const d = new Date(t * 1000);
-    return `${d.getMonth()+1}/${d.getDate()}`;
-  });
-  return { dates, close: q.close, volume: q.volume };
+  return apiFetch(`/chart?symbol=${encodeURIComponent(symbol)}&range=6mo&interval=1d`);
 }
 
 async function fetchSearch(query) {
   const q = query.trim();
-  if (currentMarket === 'kr') {
-    // 6자리 코드 직접 조회
-    if (/^\d{6}$/.test(q)) {
-      const sym = q + '.KS';
-      try {
-        const qt = await fetchQuote(sym);
-        return [{ symbol: sym, name: qt.name, display: q }];
-      } catch { return []; }
-    }
-    // 한글/영문 이름으로 내장 테이블 검색
-    const lower = q.toLowerCase();
-    const matches = KR_STOCKS.filter(s =>
-      s.name.includes(q) || s.code.startsWith(q) || s.name.toLowerCase().includes(lower)
-    ).slice(0, 10);
-    return matches.map(s => ({ symbol: s.code + '.KS', name: s.name, display: s.code }));
-  }
-  // 미국: 야후 파이낸스 검색
-  const data = await yfFetch(`/v1/finance/search?q=${q}&newsCount=0&enableFuzzyQuery=false`);
+  const data = await apiFetch(`/search?q=${encodeURIComponent(q)}`);
   const quotes = data.quotes || [];
-  return quotes
-    .filter(qt => qt.quoteType === 'EQUITY' && !qt.symbol.includes('.'))
-    .slice(0, 10)
-    .map(qt => ({ symbol: qt.symbol, name: qt.shortname || qt.longname || qt.symbol, display: qt.symbol }));
+  return quotes.map(item => ({
+    symbol:  item.symbol,
+    name:    item.name,
+    display: item.symbol.replace(/\.(KS|KQ)$/, ''),
+  }));
 }
 
 /* ── 기술적 지표 계산 ── */
@@ -253,18 +197,14 @@ function perCache(key) {
 /* ── 단일 종목 스크리닝 ── */
 async function screenOne(symbol) {
   try {
-    const data = await yfFetch(`/v8/finance/chart/${symbol}?interval=1d&range=6mo`);
-    const result = data.chart?.result?.[0];
-    if (!result) return null;
-    const meta = result.meta;
-    const q    = result.indicators.quote[0];
-    const closes  = clean(q.close);
-    const volumes = (q.volume || []).map(v => v ?? 0);
-    const highs   = clean(q.high);
+    const data = await apiFetch(`/chart?symbol=${encodeURIComponent(symbol)}&range=6mo&interval=1d`);
+    const closes  = clean(data.close);
+    const volumes = (data.volume || []).map(v => v ?? 0);
+    const highs   = clean(data.high);
     if (closes.length < 30) return null;
 
-    const price   = meta.regularMarketPrice || closes[closes.length-1];
-    const prev    = meta.chartPreviousClose  || closes[closes.length-2];
+    const price   = closes[closes.length - 1];
+    const prev    = closes[closes.length - 2] || price;
     const chgPct  = prev ? ((price - prev) / prev * 100) : 0;
     const rsi     = calcRSI(closes);
     const macd    = calcMACD(closes);
@@ -301,7 +241,7 @@ async function screenOne(symbol) {
     const ticker = symbol.replace(/\.(KS|KQ)$/, '');
     return {
       ticker,
-      name:       meta.shortName || meta.longName || ticker,
+      name:       ticker,
       price,
       change_pct: parseFloat(chgPct.toFixed(2)),
       rsi:        rsi !== null ? parseFloat(rsi.toFixed(1)) : 0,
@@ -439,12 +379,12 @@ async function runPerScreener(refresh = false) {
 
   try {
     const stockList = perMarket === 'us' ? US_SCREEN_LIST : KR_SCREEN_LIST;
-    // 배치로 v7 quote API 호출 (20개씩)
+    // 배치로 Flask /batch 호출 (20개씩)
     const all = [];
     for (let i = 0; i < stockList.length; i += 20) {
       const chunk = stockList.slice(i, i + 20).join(',');
       try {
-        const data = await yfFetch(`/v7/finance/quote?symbols=${chunk}&fields=symbol,shortName,regularMarketPrice,regularMarketChangePercent,forwardPE,trailingPE,sector`);
+        const data = await apiFetch(`/batch?symbols=${encodeURIComponent(chunk)}`);
         const items = data.quoteResponse?.result || [];
         all.push(...items);
       } catch {}
@@ -616,6 +556,8 @@ function updateStockHeader(q) {
   document.getElementById('mMcap').textContent    = q.market_cap ? fmtMcap(q.market_cap, currentMarket) : '-';
   document.getElementById('m52H').textContent     = q.week52_high ? formatPrice(q.week52_high, currentMarket, q.currency) : '-';
   document.getElementById('m52L').textContent     = q.week52_low  ? formatPrice(q.week52_low,  currentMarket, q.currency) : '-';
+  document.getElementById('mRoe').textContent     = q.roe        ? q.roe.toFixed(1) + '%'  : '-';
+  document.getElementById('mSectorPer').textContent = q.sector_per ? q.sector_per.toFixed(1) + 'x' : '-';
 }
 
 /* ── 차트 ── */
