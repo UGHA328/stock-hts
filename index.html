@@ -7,7 +7,7 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
   <title>2425 주식 HTS</title>
-  <link rel="stylesheet" href="./style.css?v=9">
+  <link rel="stylesheet" href="./style.css?v=10">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
 </head>
 <body>
@@ -171,6 +171,27 @@
   </div>
 
 </div>
-<script src="./app.js?v=16"></script>
+<!-- 매수 등록 모달 -->
+<div id="buyModal" class="modal-overlay hidden" onclick="closeBuyModal()">
+  <div class="modal-box" onclick="event.stopPropagation()">
+    <div class="modal-title">🛒 매수 등록</div>
+    <div id="buyModalInfo" class="modal-stock-info"></div>
+    <div class="modal-field">
+      <label>매수가</label>
+      <input type="number" id="buyPrice" step="any" placeholder="현재가 자동 입력">
+    </div>
+    <div class="modal-field">
+      <label>수량 (주)</label>
+      <input type="number" id="buyQty" value="1" min="1">
+    </div>
+    <div id="buyExitInfo" class="modal-exit-info"></div>
+    <div class="modal-actions">
+      <button class="modal-btn secondary" onclick="closeBuyModal()">취소</button>
+      <button class="modal-btn primary" onclick="confirmBuy()">매수 등록</button>
+    </div>
+  </div>
+</div>
+
+<script src="./app.js?v=17"></script>
 </body>
 </html>

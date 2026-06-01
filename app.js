@@ -229,6 +229,96 @@ function is52WkHigh(highs) {
   return highs[highs.length-1] >= max * 0.98;
 }
 
+/* ── 보유종목 관리 ── */
+let ownedMap    = {};  // ticker → purchase info
+let _scItemMap  = {};  // ticker → screener item (모달용)
+let _lastScRes  = [];  // 마지막 스크리너 결과
+
+async function loadPurchases() {
+  try {
+    const data = await apiFetch('/purchase');
+    ownedMap = {};
+    (data || []).forEach(p => { ownedMap[p.ticker] = p; });
+  } catch {}
+}
+
+let _buyTicker = null;
+
+function openBuyModal(ticker) {
+  const item = _scItemMap[ticker];
+  if (!item) return;
+  _buyTicker = ticker;
+  const ex  = calcExitPlan(item);
+  const mkt = screenerMarket;
+  const priceStr = mkt === 'us'
+    ? item.price.toFixed(2)
+    : String(Math.round(item.price));
+  document.getElementById('buyModalInfo').innerHTML =
+    `<strong>${escHtml(item.name)}</strong> (${item.ticker})<br>` +
+    `현재가: ${mkt === 'us' ? '$' + item.price.toFixed(2) : item.price.toLocaleString('ko-KR') + '원'}<br>` +
+    `스코어: ${item.score}점 · RSI ${item.rsi}`;
+  document.getElementById('buyPrice').value = priceStr;
+  document.getElementById('buyQty').value   = 1;
+  document.getElementById('buyExitInfo').innerHTML =
+    `목표가: +${ex.targetPct}% &nbsp;|&nbsp; 손절가: -${ex.stopPct}% &nbsp;|&nbsp; 보유기간: ${ex.holdDays}<br>` +
+    `조건 충족 시 카카오톡으로 알림을 발송합니다.`;
+  document.getElementById('buyModal').classList.remove('hidden');
+}
+
+function closeBuyModal() {
+  document.getElementById('buyModal').classList.add('hidden');
+  _buyTicker = null;
+}
+
+async function confirmBuy() {
+  const item = _scItemMap[_buyTicker];
+  if (!item) return;
+  const price = parseFloat(document.getElementById('buyPrice').value);
+  const qty   = parseInt(document.getElementById('buyQty').value, 10);
+  if (!price || !qty || qty < 1) { alert('매수가와 수량을 입력하세요.'); return; }
+
+  const ex = calcExitPlan(item);
+  try {
+    const res = await fetch(SERVER + '/purchase', {
+      method: 'POST',
+      headers: { ...HDR, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ticker:     item.ticker,
+        name:       item.name,
+        market:     screenerMarket,
+        entry_price: price,
+        quantity:   qty,
+        score:      item.score,
+        signals:    item.signals,
+        rsi:        item.rsi,
+        target_pct: ex.targetPct,
+        stop_pct:   ex.stopPct,
+        hold_days:  ex.holdDaysNum,
+      }),
+    });
+    if (!res.ok) throw new Error('서버 오류');
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    ownedMap[item.ticker] = { ticker: item.ticker, name: item.name };
+    closeBuyModal();
+    renderScreenerResults(_lastScRes);
+    alert(`✅ ${item.name} 매수 등록!\n서버가 10분마다 매도 조건을 확인하고\n카카오톡으로 알림을 보내드립니다.`);
+  } catch (e) {
+    alert('등록 실패: ' + e.message);
+  }
+}
+
+async function sellStock(ticker) {
+  if (!confirm(`${ticker} 매도 처리하시겠습니까?\n(보유종목 목록에서 삭제됩니다)`)) return;
+  try {
+    await fetch(SERVER + `/purchase/${ticker}`, { method: 'DELETE', headers: HDR });
+    delete ownedMap[ticker];
+    renderScreenerResults(_lastScRes);
+  } catch (e) {
+    alert('처리 실패: ' + e.message);
+  }
+}
+
 /* ── 성과 추적 ── */
 const PERF_KEY = 'perf_history_v1';
 
@@ -589,13 +679,13 @@ async function runScreener(refresh = false) {
 }
 
 function calcExitPlan(item) {
-  let targetPct, stopPct, holdDays;
-  if (item.score >= 10)     { targetPct = 15; stopPct = 5; holdDays = '최대 5거래일'; }
-  else if (item.score >= 7) { targetPct = 8;  stopPct = 5; holdDays = '최대 3거래일'; }
-  else                       { targetPct = 5;  stopPct = 3; holdDays = '1~2거래일'; }
+  let targetPct, stopPct, holdDays, holdDaysNum;
+  if (item.score >= 10)     { targetPct = 15; stopPct = 5; holdDays = '최대 5거래일'; holdDaysNum = 5; }
+  else if (item.score >= 7) { targetPct = 8;  stopPct = 5; holdDays = '최대 3거래일'; holdDaysNum = 3; }
+  else                       { targetPct = 5;  stopPct = 3; holdDays = '1~2거래일';   holdDaysNum = 2; }
   const p = item.price;
   return {
-    targetPct, stopPct, holdDays,
+    targetPct, stopPct, holdDays, holdDaysNum,
     targetPrice: p * (1 + targetPct / 100),
     stopPrice:   p * (1 - stopPct   / 100),
     rsiWarn:     item.rsi > 75,
@@ -616,10 +706,15 @@ function renderScreenerResults(results) {
     <strong style="color:var(--gold)">강력신호 ${highScore}개</strong> &nbsp;|&nbsp; ${now} (10분 캐시)`;
   sum.classList.remove('hidden');
 
+  _lastScRes = results;
+  _scItemMap = {};
+  results.forEach(r => { _scItemMap[r.ticker] = r; });
+
   list.innerHTML = results.map(item => {
     const scoreCls = item.score >= 10 ? 'score-s' : item.score >= 7 ? 'score-a' : 'score-b';
     const chgCls   = item.change_pct >= 0 ? 'up' : 'down';
     const chgSign  = item.change_pct >= 0 ? '+' : '';
+    const isOwned  = !!ownedMap[item.ticker];
     const mkt      = screenerMarket;
     const fmtP     = p => mkt === 'us'
       ? '$' + p.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -644,6 +739,7 @@ function renderScreenerResults(results) {
         <div style="text-align:right">
           <div class="sc-price">${price}</div>
           <div class="${chgCls}" style="font-size:12px">${chgSign}${item.change_pct}%</div>
+          ${isOwned ? '<div style="margin-top:4px"><span class="owned-badge">✅ 보유중</span></div>' : ''}
         </div>
       </div>
       <div class="sc-card-bottom">
@@ -660,6 +756,11 @@ function renderScreenerResults(results) {
         <span class="exit-days">${ex.holdDays}</span>
         ${ex.rsiWarn ? '<span class="exit-warn">⚠ RSI 과열</span>' : ''}
         ${ex.ma5Exit ? '<span class="exit-note">MA5 이탈시 즉시 매도</span>' : ''}
+        <span style="flex:1"></span>
+        ${isOwned
+          ? `<button class="sell-btn" onclick="event.stopPropagation();sellStock('${item.ticker}')">매도 완료</button>`
+          : `<button class="buy-btn" onclick="event.stopPropagation();openBuyModal('${item.ticker}')">🛒 매수 등록</button>`
+        }
       </div>
     </div>`;
   }).join('');
@@ -1087,4 +1188,5 @@ document.querySelectorAll('.wl-tab').forEach(btn => {
 
 /* ── 초기화 ── */
 loadWatchlistData();
+loadPurchases();
 initCharts();
