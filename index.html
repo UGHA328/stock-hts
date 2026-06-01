@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>주식 대시보드</title>
+  <link rel="stylesheet" href="./style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <!-- ── 상단 바 ── -->
+  <header class="top-bar">
+    <div class="app-title">📈 주식 대시보드</div>
+    <div class="market-toggle">
+      <button class="tab-btn active" data-market="us">🇺🇸 US</button>
+      <button class="tab-btn" data-market="kr">🇰🇷 KR</button>
+    </div>
+  </header>
+
+  <!-- ── 검색 바 ── -->
+  <div class="search-bar">
+    <div class="search-box">
+      <input type="search" id="searchInput" placeholder="종목명 또는 코드 검색..." autocomplete="off">
+      <div id="searchResults" class="search-results hidden"></div>
+    </div>
+  </div>
+
+  <!-- ── 메인 콘텐츠 ── -->
+  <main class="content">
+
+    <!-- 종목 탭 -->
+    <div id="tab-home" class="tab-pane">
+      <div id="emptyState" class="empty-state">
+        <div class="empty-icon">🔍</div>
+        <p>종목을 검색하거나<br>관심종목을 선택하세요</p>
+        <p class="sub">미국: AAPL, TSLA, NVDA<br>한국: 005930 (삼성전자)</p>
+      </div>
+      <div id="stockDetail" class="hidden">
+        <div class="stock-header">
+          <div class="stock-info">
+            <div class="stock-name" id="stockName"></div>
+            <div class="stock-code" id="stockCode"></div>
+          </div>
+          <div class="price-area">
+            <div class="price" id="stockPrice">-</div>
+            <div class="change" id="stockChange">-</div>
+          </div>
+        </div>
+        <button id="addWatchBtn" class="watch-add-btn">⭐ 관심종목 추가</button>
+        <div class="metrics">
+          <div class="metric-card"><div class="label">시가</div><div id="mOpen" class="value">-</div></div>
+          <div class="metric-card"><div class="label">고가</div><div id="mHigh" class="value">-</div></div>
+          <div class="metric-card"><div class="label">저가</div><div id="mLow" class="value">-</div></div>
+          <div class="metric-card"><div class="label">거래량</div><div id="mVolume" class="value">-</div></div>
+        </div>
+        <div class="chart-wrap"><canvas id="priceChart"></canvas></div>
+        <div class="chart-wrap small"><canvas id="volumeChart"></canvas></div>
+      </div>
+    </div>
+
+    <!-- 스크리너 탭 -->
+    <div id="tab-screener" class="tab-pane hidden">
+      <div class="mode-tabs">
+        <button class="mode-tab active" data-mode="momentum">🔥 급등 스크리너</button>
+        <button class="mode-tab" data-mode="value">💰 저평가 PER</button>
+      </div>
+
+      <!-- 급등 스크리너 -->
+      <div id="momentumPanel">
+        <div class="sc-controls">
+          <div class="sc-market-tabs">
+            <button class="sc-tab active" data-m="us">🇺🇸 미국</button>
+            <button class="sc-tab" data-m="kr">🇰🇷 한국</button>
+          </div>
+          <div class="sc-btns">
+            <button id="runBtn" class="run-btn">▶ 실행</button>
+            <button id="refreshBtn" class="icon-btn">↺</button>
+          </div>
+        </div>
+        <p class="sc-desc">거래량·MA·RSI·MACD·볼린저밴드·52주 신고가 종합 분석 (야후 파이낸스)</p>
+        <div id="scLoading" class="sc-loading hidden">
+          <div class="spinner"></div>
+          <p>종목 스크리닝 중...<br><small>약 30~60초 소요됩니다</small></p>
+        </div>
+        <div id="scSummary" class="sc-summary hidden"></div>
+        <div id="scList" class="sc-list hidden"></div>
+        <div id="scEmpty" class="empty-msg hidden">조건에 맞는 종목이 없습니다.</div>
+      </div>
+
+      <!-- 저PER 스크리너 -->
+      <div id="valuePanel" class="hidden">
+        <div class="sc-controls">
+          <div class="sc-market-tabs">
+            <button class="per-tab active" data-m="us">🇺🇸 미국</button>
+            <button class="per-tab" data-m="kr">🇰🇷 한국</button>
+          </div>
+          <div class="sc-btns">
+            <button id="perRunBtn" class="run-btn gold">▶ 실행</button>
+            <button id="perRefreshBtn" class="icon-btn">↺</button>
+          </div>
+        </div>
+        <p class="sc-desc">포워드 PER 기준 저평가 종목 분석 (야후 파이낸스)</p>
+        <div id="perLoading" class="sc-loading hidden">
+          <div class="spinner"></div>
+          <p>PER 데이터 수집 중...<br><small>잠시만 기다려주세요</small></p>
+        </div>
+        <div id="perSummary" class="sc-summary hidden"></div>
+        <div id="perList" class="sc-list hidden"></div>
+        <div id="perEmpty" class="empty-msg hidden">데이터를 가져올 수 없습니다. 다시 시도해주세요.</div>
+      </div>
+    </div>
+
+    <!-- 관심종목 탭 -->
+    <div id="tab-watch" class="tab-pane hidden">
+      <div class="wl-market-tabs">
+        <button class="wl-tab active" data-market="us">🇺🇸 미국</button>
+        <button class="wl-tab" data-market="kr">🇰🇷 한국</button>
+      </div>
+      <div id="watchlistPanel" class="watchlist-panel"></div>
+    </div>
+
+  </main>
+
+  <!-- ── 하단 네비게이션 ── -->
+  <nav class="bottom-nav">
+    <button class="nav-btn active" data-tab="home">
+      <span class="nav-icon">📊</span>
+      <span class="nav-label">종목</span>
+    </button>
+    <button class="nav-btn" data-tab="screener">
+      <span class="nav-icon">🔥</span>
+      <span class="nav-label">스크리너</span>
+    </button>
+    <button class="nav-btn" data-tab="watch">
+      <span class="nav-icon">⭐</span>
+      <span class="nav-label">관심종목</span>
+    </button>
+  </nav>
+
+</div>
+<script src="./app.js"></script>
+</body>
+</html>
