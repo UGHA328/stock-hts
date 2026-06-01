@@ -95,24 +95,36 @@ async function yfFetch(path) {
 }
 
 async function fetchQuote(symbol) {
-  const data = await yfFetch(`/v8/finance/chart/${symbol}?interval=1d&range=5d`);
-  const result = data.chart?.result?.[0];
+  const [chartData, quoteData] = await Promise.all([
+    yfFetch(`/v8/finance/chart/${symbol}?interval=1d&range=5d`),
+    yfFetch(`/v7/finance/quote?symbols=${symbol}&fields=trailingPE,forwardPE,priceToBook,trailingEps,dividendYield,marketCap,fiftyTwoWeekHigh,fiftyTwoWeekLow`).catch(() => null),
+  ]);
+  const result = chartData.chart?.result?.[0];
   if (!result) throw new Error('데이터 없음');
   const meta = result.meta;
   const price = meta.regularMarketPrice;
   const prev  = meta.chartPreviousClose || meta.previousClose || price;
   const chg   = price - prev;
   const chgPct = prev ? (chg / prev * 100) : 0;
+  const q = quoteData?.quoteResponse?.result?.[0] || {};
   return {
     price,
     change:     chg,
     change_pct: chgPct,
-    open:   meta.regularMarketOpen      || 0,
-    high:   meta.regularMarketDayHigh   || 0,
-    low:    meta.regularMarketDayLow    || 0,
-    volume: meta.regularMarketVolume    || 0,
+    open:   meta.regularMarketOpen    || 0,
+    high:   meta.regularMarketDayHigh || 0,
+    low:    meta.regularMarketDayLow  || 0,
+    volume: meta.regularMarketVolume  || 0,
     name:   meta.shortName || meta.longName || symbol,
     currency: meta.currency || 'USD',
+    per:        q.trailingPE      || null,
+    fpe:        q.forwardPE       || null,
+    pbr:        q.priceToBook     || null,
+    eps:        q.trailingEps     || null,
+    dividend:   q.dividendYield   ? (q.dividendYield * 100) : null,
+    market_cap: q.marketCap       || null,
+    week52_high: q.fiftyTwoWeekHigh || null,
+    week52_low:  q.fiftyTwoWeekLow  || null,
   };
 }
 
@@ -590,10 +602,18 @@ function updateStockHeader(q) {
   const chgEl = document.getElementById('stockChange');
   chgEl.textContent = `${sign}${chg.toFixed(2)} (${sign}${pct.toFixed(2)}%)`;
   chgEl.className = 'change ' + (chg >= 0 ? 'up' : 'down');
-  document.getElementById('mOpen').textContent   = formatPrice(q.open,   currentMarket, q.currency);
-  document.getElementById('mHigh').textContent   = formatPrice(q.high,   currentMarket, q.currency);
-  document.getElementById('mLow').textContent    = formatPrice(q.low,    currentMarket, q.currency);
-  document.getElementById('mVolume').textContent = fmtVol(q.volume);
+  document.getElementById('mOpen').textContent    = formatPrice(q.open,   currentMarket, q.currency);
+  document.getElementById('mHigh').textContent    = formatPrice(q.high,   currentMarket, q.currency);
+  document.getElementById('mLow').textContent     = formatPrice(q.low,    currentMarket, q.currency);
+  document.getElementById('mVolume').textContent  = fmtVol(q.volume);
+  document.getElementById('mPer').textContent     = q.per   ? q.per.toFixed(1) + 'x'  : '-';
+  document.getElementById('mFpe').textContent     = q.fpe   ? q.fpe.toFixed(1) + 'x'  : '-';
+  document.getElementById('mPbr').textContent     = q.pbr   ? q.pbr.toFixed(2) + 'x'  : '-';
+  document.getElementById('mEps').textContent     = q.eps   ? formatPrice(q.eps, currentMarket, q.currency) : '-';
+  document.getElementById('mDiv').textContent     = q.dividend ? q.dividend.toFixed(2) + '%' : '-';
+  document.getElementById('mMcap').textContent    = q.market_cap ? fmtMcap(q.market_cap, currentMarket) : '-';
+  document.getElementById('m52H').textContent     = q.week52_high ? formatPrice(q.week52_high, currentMarket, q.currency) : '-';
+  document.getElementById('m52L').textContent     = q.week52_low  ? formatPrice(q.week52_low,  currentMarket, q.currency) : '-';
 }
 
 /* ── 차트 ── */
@@ -677,6 +697,18 @@ function formatPrice(n, market, currency) {
   if (!n) return '-';
   if (market === 'kr' || currency === 'KRW') return Number(n).toLocaleString('ko-KR') + '원';
   return '$' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+function fmtMcap(n, market) {
+  if (!n) return '-';
+  if (market === 'kr') {
+    if (n >= 1e12) return (n/1e12).toFixed(1) + '조';
+    if (n >= 1e8)  return (n/1e8).toFixed(0) + '억';
+    return n.toLocaleString('ko-KR');
+  }
+  if (n >= 1e12) return '$' + (n/1e12).toFixed(2) + 'T';
+  if (n >= 1e9)  return '$' + (n/1e9).toFixed(1) + 'B';
+  if (n >= 1e6)  return '$' + (n/1e6).toFixed(1) + 'M';
+  return '$' + n.toLocaleString();
 }
 function fmtVol(n) {
   if (!n) return '-';
