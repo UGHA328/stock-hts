@@ -580,6 +580,21 @@ async function runScreener(refresh = false) {
   }
 }
 
+function calcExitPlan(item) {
+  let targetPct, stopPct, holdDays;
+  if (item.score >= 10)     { targetPct = 15; stopPct = 5; holdDays = '최대 5거래일'; }
+  else if (item.score >= 7) { targetPct = 8;  stopPct = 5; holdDays = '최대 3거래일'; }
+  else                       { targetPct = 5;  stopPct = 3; holdDays = '1~2거래일'; }
+  const p = item.price;
+  return {
+    targetPct, stopPct, holdDays,
+    targetPrice: p * (1 + targetPct / 100),
+    stopPrice:   p * (1 - stopPct   / 100),
+    rsiWarn:     item.rsi > 75,
+    ma5Exit:     item.score < 10,
+  };
+}
+
 function renderScreenerResults(results) {
   const list = document.getElementById('scList');
   const sum  = document.getElementById('scSummary');
@@ -597,15 +612,18 @@ function renderScreenerResults(results) {
     const scoreCls = item.score >= 10 ? 'score-s' : item.score >= 7 ? 'score-a' : 'score-b';
     const chgCls   = item.change_pct >= 0 ? 'up' : 'down';
     const chgSign  = item.change_pct >= 0 ? '+' : '';
-    const price    = screenerMarket === 'us'
-      ? '$' + item.price.toLocaleString('en-US', { minimumFractionDigits: 2 })
-      : item.price.toLocaleString('ko-KR') + '원';
+    const mkt      = screenerMarket;
+    const fmtP     = p => mkt === 'us'
+      ? '$' + p.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+      : Math.round(p).toLocaleString('ko-KR') + '원';
+    const price    = fmtP(item.price);
     const rsiCls   = item.rsi > 70 ? 'rsi-hot' : item.rsi >= 50 ? 'rsi-ok' : item.rsi >= 40 ? 'rsi-mid' : 'rsi-cool';
     const sigHtml  = item.signals.map(s => {
       const cls = s.includes('골든') || s.includes('신고가') ? 'hot'
                 : s.includes('정배열') ? 'good' : '';
       return `<span class="sig-tag ${cls}">${s}</span>`;
     }).join('');
+    const ex = calcExitPlan(item);
     return `<div class="sc-card" data-code="${item.ticker}" data-name="${escHtml(item.name)}">
       <div class="sc-card-top">
         <div class="sc-card-left">
@@ -625,6 +643,15 @@ function renderScreenerResults(results) {
         <span class="sc-meta">거래량 ${item.vol_ratio}x</span>
         ${item.golden ? '<span class="sig-tag hot">✂️ 골든크로스</span>' : item.macd_bull ? '<span class="sig-tag">▲ MACD 강세</span>' : ''}
         ${sigHtml}
+      </div>
+      <div class="sc-exit">
+        <span class="exit-target">▲ +${ex.targetPct}% ${fmtP(ex.targetPrice)}</span>
+        <span class="exit-sep">|</span>
+        <span class="exit-stop">▼ -${ex.stopPct}% ${fmtP(ex.stopPrice)}</span>
+        <span class="exit-sep">|</span>
+        <span class="exit-days">${ex.holdDays}</span>
+        ${ex.rsiWarn ? '<span class="exit-warn">⚠ RSI 과열</span>' : ''}
+        ${ex.ma5Exit ? '<span class="exit-note">MA5 이탈시 즉시 매도</span>' : ''}
       </div>
     </div>`;
   }).join('');
