@@ -45,7 +45,7 @@ async function yfFetch(path) {
 }
 
 async function fetchQuote(symbol) {
-  const data = await yfFetch(`/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=5d`);
+  const data = await yfFetch(`/v8/finance/chart/${symbol}?interval=1d&range=5d`);
   const result = data.chart?.result?.[0];
   if (!result) throw new Error('데이터 없음');
   const meta = result.meta;
@@ -67,7 +67,7 @@ async function fetchQuote(symbol) {
 }
 
 async function fetchChart(symbol) {
-  const data = await yfFetch(`/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=6mo`);
+  const data = await yfFetch(`/v8/finance/chart/${symbol}?interval=1d&range=6mo`);
   const result = data.chart?.result?.[0];
   if (!result) throw new Error('차트 데이터 없음');
   const ts  = result.timestamp || [];
@@ -87,7 +87,7 @@ async function fetchSearch(query) {
       return [{ symbol: sym, name: q.name, display: query.trim() }];
     } catch { return []; }
   }
-  const data = await yfFetch(`/v1/finance/search?q=${encodeURIComponent(query)}&newsCount=0&enableFuzzyQuery=false`);
+  const data = await yfFetch(`/v1/finance/search?q=${query}&newsCount=0&enableFuzzyQuery=false`);
   const quotes = data.quotes || [];
   return quotes
     .filter(q => q.quoteType === 'EQUITY')
@@ -182,7 +182,7 @@ function perCache(key) {
 /* ── 단일 종목 스크리닝 ── */
 async function screenOne(symbol) {
   try {
-    const data = await yfFetch(`/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=6mo`);
+    const data = await yfFetch(`/v8/finance/chart/${symbol}?interval=1d&range=6mo`);
     const result = data.chart?.result?.[0];
     if (!result) return null;
     const meta = result.meta;
@@ -373,7 +373,7 @@ async function runPerScreener(refresh = false) {
     for (let i = 0; i < stockList.length; i += 20) {
       const chunk = stockList.slice(i, i + 20).join(',');
       try {
-        const data = await yfFetch(`/v7/finance/quote?symbols=${encodeURIComponent(chunk)}&fields=symbol,shortName,regularMarketPrice,regularMarketChangePercent,forwardPE,trailingPE,sector`);
+        const data = await yfFetch(`/v7/finance/quote?symbols=${chunk}&fields=symbol,shortName,regularMarketPrice,regularMarketChangePercent,forwardPE,trailingPE,sector`);
         const items = data.quoteResponse?.result || [];
         all.push(...items);
       } catch {}
