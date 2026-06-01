@@ -7,7 +7,7 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
   <title>2425 주식 HTS</title>
-  <link rel="stylesheet" href="./style.css?v=10">
+  <link rel="stylesheet" href="./style.css?v=11">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
 </head>
 <body>
@@ -31,6 +31,10 @@
     <button class="nav-btn" data-tab="watch">
       <span class="nav-icon">⭐</span>
       <span class="nav-label">관심</span>
+    </button>
+    <button class="nav-btn" data-tab="rev">
+      <span class="nav-icon">🔄</span>
+      <span class="nav-label">반전</span>
     </button>
     <button class="nav-btn" data-tab="perf">
       <span class="nav-icon">📈</span>
@@ -155,6 +159,53 @@
           <div class="empty-icon">📊</div>
           <p>급등주 스크리너를 실행하면<br>성과 데이터가 쌓입니다</p>
           <p class="sub">T+1·T+5 기준으로 실현 여부를<br>자동 추적해 승률을 개선합니다</p>
+        </div>
+      </div>
+
+      <!-- 반전예상주 탭 -->
+      <div id="tab-rev" class="tab-pane hidden">
+        <div class="rev-subtabs">
+          <button class="rev-stab active" data-stab="screener">📉 스크리너</button>
+          <button class="rev-stab" data-stab="perf">📊 성과·피드백</button>
+        </div>
+
+        <!-- 스크리너 섹션 -->
+        <div id="revScreenSection">
+          <div class="sc-controls">
+            <div class="sc-market-tabs">
+              <button class="rev-mkt active" data-m="us">🇺🇸 미국</button>
+              <button class="rev-mkt" data-m="kr">🇰🇷 한국</button>
+            </div>
+            <div class="sc-btns">
+              <button id="revRunBtn" class="run-btn violet">▶ 실행</button>
+              <button id="revRefreshBtn" class="icon-btn">↺</button>
+            </div>
+          </div>
+          <p class="sc-desc">RSI 과매도 탈출·BB 하단 복귀·MA 반전·MACD 개선 종합 분석 · 신호 가중치 자동 학습</p>
+          <div id="revLoading" class="sc-loading hidden">
+            <div class="spinner violet-spin"></div>
+            <p>바닥 반전 종목 탐색 중...<br><small>약 30~60초 소요됩니다</small></p>
+          </div>
+          <div id="revSummary" class="sc-summary hidden"></div>
+          <div id="revList" class="sc-list hidden"></div>
+          <div id="revEmpty" class="empty-msg hidden">조건에 맞는 반전 후보가 없습니다.</div>
+        </div>
+
+        <!-- 성과·피드백 섹션 -->
+        <div id="revPerfSection" class="hidden">
+          <div class="perf-header">
+            <div style="font-size:14px;font-weight:700">반전예상주 성과 · AI 피드백</div>
+            <button id="revPerfUpdateBtn" class="icon-btn">↺ 업데이트</button>
+          </div>
+          <p class="sc-desc">T+5 기준 +5% 이상 = 성공 · 7일 자동 삭제 · 신호 가중치 자동 학습</p>
+          <div id="revFeedbackEl" class="rev-feedback hidden"></div>
+          <div id="revPerfStats" class="perf-stats hidden"></div>
+          <div id="revPerfSessions" class="perf-sessions"></div>
+          <div id="revPerfEmpty" class="empty-state">
+            <div class="empty-icon">🔄</div>
+            <p>반전예상주 스크리너를 실행하면<br>성과 데이터가 쌓입니다</p>
+            <p class="sub">T+5 기준으로 실현 여부 추적·<br>신호 가중치를 스스로 개선합니다</p>
+          </div>
         </div>
       </div>
 

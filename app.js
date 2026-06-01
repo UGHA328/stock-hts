@@ -229,6 +229,550 @@ function is52WkHigh(highs) {
   return highs[highs.length-1] >= max * 0.98;
 }
 
+/* ── 반전예상주 스크리너 ── */
+const REV_HIST_KEY    = 'rev_history_v1';
+const REV_WEIGHTS_KEY = 'rev_weights_v1';
+const REV_DEFAULT_W   = {
+  'RSI 과매도 탈출': 3, 'BB 하단 복귀': 3, 'MA5 반전 중': 3,
+  'MACD 개선 중':   2, '거래량 반등':  2, '52주 저가 근접': 2, '소폭 반등': 1,
+};
+
+let revMarket  = 'us';
+let revSubTab  = 'screener';
+let _revLastRes = [];
+
+function loadRevWeights() {
+  try {
+    const s = localStorage.getItem(REV_WEIGHTS_KEY);
+    return s ? { ...REV_DEFAULT_W, ...JSON.parse(s) } : { ...REV_DEFAULT_W };
+  } catch { return { ...REV_DEFAULT_W }; }
+}
+function saveRevWeights(w) {
+  try { localStorage.setItem(REV_WEIGHTS_KEY, JSON.stringify(w)); } catch {}
+}
+
+function loadRevHistory() {
+  try {
+    const r = localStorage.getItem(REV_HIST_KEY);
+    if (!r) return [];
+    const all = JSON.parse(r);
+    const cutoff = Date.now() - 7 * 864e5;
+    const fresh = all.filter(s => s.ts >= cutoff);
+    if (fresh.length !== all.length) {
+      try { localStorage.setItem(REV_HIST_KEY, JSON.stringify(fresh)); } catch {}
+    }
+    return fresh;
+  } catch { return []; }
+}
+function saveRevHistoryData(h) {
+  try { localStorage.setItem(REV_HIST_KEY, JSON.stringify(h)); } catch {}
+}
+function saveRevHistory(results, market) {
+  if (!results || !results.length) return;
+  const history = loadRevHistory();
+  history.unshift({
+    id: Date.now(), date: new Date().toLocaleDateString('ko-KR'),
+    ts: Date.now(), market,
+    stocks: results.slice(0, 20).map(r => ({
+      ticker: r.ticker, name: r.name, entry_price: r.price,
+      score: r.score, signals: r.signals, rsi: r.rsi, prices: {},
+    })),
+  });
+  if (history.length > 30) history.splice(30);
+  saveRevHistoryData(history);
+}
+
+// MACD 히스토그램 개선 여부 (음수에서 상승 추세)
+function calcMACDHistogram(closes) {
+  if (closes.length < 35) return { improving: false };
+  const e12  = emaSeries(closes, 12);
+  const e26  = emaSeries(closes, 26);
+  const line = e12.map((v, i) => v - e26[i]);
+  const sig  = emaSeries(line.slice(25), 9);
+  const n    = sig.length - 1;
+  const h    = [
+    line[line.length - 3] - (sig[n - 2] ?? sig[n]),
+    line[line.length - 2] - (sig[n - 1] ?? sig[n]),
+    line[line.length - 1] - sig[n],
+  ];
+  return { improving: h[2] < 0 && h[2] > h[1] && h[1] > h[0] };
+}
+
+// 반전 매도 플랜 (급등주보다 넉넉하게)
+function calcRevExitPlan(item) {
+  let targetPct, stopPct, holdDays, holdDaysNum;
+  if (item.score >= 10)     { targetPct = 25; stopPct = 7; holdDays = '최대 20거래일'; holdDaysNum = 20; }
+  else if (item.score >= 7) { targetPct = 15; stopPct = 7; holdDays = '최대 15거래일'; holdDaysNum = 15; }
+  else                       { targetPct = 10; stopPct = 7; holdDays = '최대 10거래일'; holdDaysNum = 10; }
+  const p = item.price;
+  return {
+    targetPct, stopPct, holdDays, holdDaysNum,
+    targetPrice: p * (1 + targetPct / 100),
+    stopPrice:   p * (1 - stopPct   / 100),
+  };
+}
+
+// 단일 종목 반전 스크리닝
+async function revScreenOne(symbol) {
+  try {
+    const data = await apiFetch(`/chart?symbol=${encodeURIComponent(symbol)}&range=6mo&interval=1d`);
+    const closes  = clean(data.close);
+    const volumes = (data.volume || []).map(v => v ?? 0);
+    const lows    = clean(data.low);
+    if (closes.length < 40) return null;
+
+    const price  = closes[closes.length - 1];
+    const prev   = closes[closes.length - 2] || price;
+    const chgPct = prev ? ((price - prev) / prev * 100) : 0;
+    if (chgPct < -4) return null;  // 아직 급락 중 → 제외
+
+    const rsi   = calcRSI(closes);
+    if (rsi === null || rsi > 55 || rsi < 20) return null;  // 과매도 회복 구간만
+
+    const ma5    = calcMA(closes, 5);
+    const ma20   = calcMA(closes, 20);
+    const ma5ago = calcMA(closes.slice(0, -3), 5);  // 3일 전 MA5
+    const vr     = volRatio(volumes);
+    const bb     = calcBB(closes);
+    const bbPrev = calcBB(closes.slice(0, -5));
+    const macdH  = calcMACDHistogram(closes);
+
+    // 52주 저가 근접
+    const yr52L  = lows.length >= 20 ? Math.min(...(lows.length >= 252 ? lows.slice(-252) : lows)) : 0;
+    const near52 = yr52L > 0 && price <= yr52L * 1.20;
+
+    const weights = loadRevWeights();
+    let score = 0;
+    const signals = [];
+
+    // RSI 과매도 탈출: 현재 28~52 범위
+    if (rsi >= 28 && rsi <= 52) {
+      score += weights['RSI 과매도 탈출'] || 3;
+      signals.push(`RSI 과매도 탈출 (${rsi.toFixed(0)})`);
+    }
+
+    // BB 하단 복귀: 이전에 하단 아래였다가 현재 안으로 들어옴
+    if (bbPrev.below && !bb.below) {
+      score += weights['BB 하단 복귀'] || 3;
+      signals.push('BB 하단 복귀');
+    }
+
+    // MA5 반전: MA5 < MA20 이지만 MA5가 상향 전환 중
+    if (ma5 && ma20 && ma5 < ma20 && ma5ago && ma5 > ma5ago) {
+      score += weights['MA5 반전 중'] || 3;
+      signals.push('MA5 반전 중');
+    }
+
+    // MACD 히스토그램 개선 (음수에서 상승)
+    if (macdH.improving) {
+      score += weights['MACD 개선 중'] || 2;
+      signals.push('MACD 개선 중');
+    }
+
+    // 거래량 반등 (양봉 + 2배 이상)
+    if (vr >= 2 && chgPct > 0) {
+      score += weights['거래량 반등'] || 2;
+      signals.push(`거래량 반등 ${vr.toFixed(1)}x`);
+    } else if (vr >= 1.5 && chgPct > 0) {
+      score += 1;
+      signals.push(`거래량 증가 ${vr.toFixed(1)}x`);
+    }
+
+    // 52주 저가 근접
+    if (near52) {
+      score += weights['52주 저가 근접'] || 2;
+      signals.push('52주 저가 근접');
+    }
+
+    // 소폭 반등 (당일 +0.5% 이상)
+    if (chgPct >= 0.5) {
+      score += weights['소폭 반등'] || 1;
+      signals.push(`반등 +${chgPct.toFixed(1)}%`);
+    }
+
+    if (score < 5 || signals.length < 2) return null;
+
+    const ticker  = symbol.replace(/\.(KS|KQ)$/, '');
+    const krEntry = KR_STOCKS.find(s => s.code === ticker);
+    return {
+      ticker,
+      name:       krEntry ? krEntry.name : (US_NAMES[ticker] || ticker),
+      price,
+      change_pct: parseFloat(chgPct.toFixed(2)),
+      rsi:        parseFloat(rsi.toFixed(1)),
+      vol_ratio:  parseFloat(vr.toFixed(1)),
+      score:      parseFloat(score.toFixed(1)),
+      signals,
+    };
+  } catch { return null; }
+}
+
+async function batchRevScreen(list, market) {
+  const results = [];
+  for (let i = 0; i < list.length; i += 5) {
+    const chunk   = list.slice(i, i + 5);
+    const settled = await Promise.allSettled(chunk.map(s => revScreenOne(s)));
+    settled.forEach(r => { if (r.status === 'fulfilled' && r.value) results.push(r.value); });
+    if (i + 5 < list.length) await new Promise(r => setTimeout(r, 300));
+  }
+  const sorted = results.sort((a, b) => b.score - a.score);
+  if (market === 'us' && sorted.length > 0) {
+    try {
+      const syms = sorted.map(r => r.ticker).join(',');
+      const data = await apiFetch(`/batch?symbols=${encodeURIComponent(syms)}`);
+      const nm   = {};
+      (data.quoteResponse?.result || []).forEach(q => { if (q.shortName) nm[q.symbol] = q.shortName; });
+      sorted.forEach(r => { if (nm[r.ticker]) r.name = nm[r.ticker]; });
+    } catch {}
+  }
+  return sorted;
+}
+
+async function runRevScreener(refresh = false) {
+  const btn  = document.getElementById('revRunBtn');
+  const load = document.getElementById('revLoading');
+  const list = document.getElementById('revList');
+  const sum  = document.getElementById('revSummary');
+  const emp  = document.getElementById('revEmpty');
+
+  const cacheKey = `rev_${revMarket}`;
+  if (!refresh) {
+    const cached = scCache(cacheKey);
+    if (cached) { renderRevResults(cached); return; }
+  }
+
+  btn.disabled = true; btn.textContent = '⏳ 탐색 중...';
+  load.classList.remove('hidden');
+  [list, sum, emp].forEach(el => el.classList.add('hidden'));
+
+  try {
+    const stockList = revMarket === 'us' ? US_SCREEN_LIST : KR_SCREEN_LIST;
+    const results   = await batchRevScreen(stockList, revMarket);
+    scCacheSet(cacheKey, results);
+    saveRevHistory(results, revMarket);
+    renderRevResults(results);
+  } catch (e) {
+    alert('스크리너 오류: ' + e.message);
+  } finally {
+    btn.disabled = false; btn.textContent = '▶ 실행';
+    load.classList.add('hidden');
+  }
+}
+
+function renderRevResults(results) {
+  _revLastRes = results;
+  const list = document.getElementById('revList');
+  const sum  = document.getElementById('revSummary');
+  const emp  = document.getElementById('revEmpty');
+
+  if (!results.length) { emp.classList.remove('hidden'); return; }
+
+  const now  = new Date().toLocaleTimeString('ko-KR');
+  sum.innerHTML = `<strong>${results.length}개</strong> 반전 후보 &nbsp;|&nbsp;
+    <span style="color:var(--violet)">강력신호 ${results.filter(i => i.score >= 8).length}개</span>
+    &nbsp;|&nbsp; ${now} (10분 캐시)`;
+  sum.classList.remove('hidden');
+
+  list.innerHTML = results.map(item => {
+    const ex      = calcRevExitPlan(item);
+    const isOwned = !!ownedMap[item.ticker];
+    const chgCls  = item.change_pct >= 0 ? 'up' : 'down';
+    const chgSign = item.change_pct >= 0 ? '+' : '';
+    const mkt     = revMarket;
+    const fmtP    = p => mkt === 'us'
+      ? '$' + p.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+      : Math.round(p).toLocaleString('ko-KR') + '원';
+    const scoreCls = item.score >= 10 ? 'score-s' : item.score >= 7 ? 'score-a' : 'score-b';
+    const rsiCls   = item.rsi <= 35 ? 'rsi-cool' : item.rsi <= 45 ? 'rsi-mid' : 'rsi-ok';
+    const sigHtml  = item.signals.map(s =>
+      `<span class="sig-tag" style="background:rgba(163,113,247,.1);color:var(--violet)">${escHtml(s)}</span>`
+    ).join('');
+    return `<div class="rev-card" data-code="${item.ticker}" data-name="${escHtml(item.name)}">
+      <div class="sc-card-top">
+        <div class="sc-card-left">
+          <div class="score-badge rev-score">${item.score}</div>
+          <div>
+            <div class="sc-name">${escHtml(item.name)}</div>
+            <div class="sc-code">${item.ticker}</div>
+          </div>
+        </div>
+        <div style="text-align:right">
+          <div class="sc-price">${fmtP(item.price)}</div>
+          <div class="${chgCls}" style="font-size:12px">${chgSign}${item.change_pct}%</div>
+          ${isOwned ? '<div style="margin-top:4px"><span class="owned-badge">✅ 보유중</span></div>' : ''}
+        </div>
+      </div>
+      <div class="sc-card-bottom">
+        <span class="rsi-pill ${rsiCls}">RSI ${item.rsi}</span>
+        <span class="sc-meta">거래량 ${item.vol_ratio}x</span>
+        ${sigHtml}
+      </div>
+      <div class="sc-exit">
+        <span class="exit-target">▲ +${ex.targetPct}% ${fmtP(ex.targetPrice)}</span>
+        <span class="exit-sep">|</span>
+        <span class="exit-stop">▼ -${ex.stopPct}% ${fmtP(ex.stopPrice)}</span>
+        <span class="exit-sep">|</span>
+        <span class="exit-days">${ex.holdDays}</span>
+        <span style="flex:1"></span>
+        ${isOwned
+          ? `<button class="sell-btn" onclick="event.stopPropagation();sellStock('${item.ticker}')">매도 완료</button>`
+          : `<button class="buy-btn" onclick="event.stopPropagation();openRevBuyModal('${item.ticker}')">🛒 매수 등록</button>`
+        }
+      </div>
+    </div>`;
+  }).join('');
+
+  list.querySelectorAll('.rev-card').forEach(card => {
+    card.addEventListener('click', e => {
+      if (e.target.closest('button')) return;
+      currentMarket = revMarket;
+      document.querySelectorAll('.tab-btn').forEach(b =>
+        b.classList.toggle('active', b.dataset.market === revMarket));
+      switchTab('home');
+      selectStock(card.dataset.code, card.dataset.name);
+    });
+  });
+  list.classList.remove('hidden');
+}
+
+// 반전주 매수 모달 (exit plan이 다르므로 별도 래퍼)
+let _revBuyTicker = null;
+function openRevBuyModal(ticker) {
+  const item = _revLastRes.find(r => r.ticker === ticker);
+  if (!item) return;
+  _revBuyTicker = ticker;
+  const ex  = calcRevExitPlan(item);
+  const mkt = revMarket;
+  document.getElementById('buyModalInfo').innerHTML =
+    `<strong>${escHtml(item.name)}</strong> (${item.ticker})<br>` +
+    `현재가: ${mkt === 'us' ? '$' + item.price.toFixed(2) : item.price.toLocaleString('ko-KR') + '원'}<br>` +
+    `스코어: ${item.score}점 · RSI ${item.rsi} · <span style="color:var(--violet)">반전예상주</span>`;
+  document.getElementById('buyPrice').value = mkt === 'us' ? item.price.toFixed(2) : String(Math.round(item.price));
+  document.getElementById('buyQty').value   = 1;
+  document.getElementById('buyExitInfo').innerHTML =
+    `목표가: +${ex.targetPct}% &nbsp;|&nbsp; 손절가: -${ex.stopPct}% &nbsp;|&nbsp; 보유기간: ${ex.holdDays}<br>` +
+    `조건 충족 시 카카오톡으로 알림을 발송합니다.`;
+  document.getElementById('buyModal').classList.remove('hidden');
+  // confirmBuy를 rev용으로 override
+  document.getElementById('buyModal').dataset.mode = 'rev';
+}
+
+// ── 성과·피드백 ──────────────────────────────────────────────
+async function updateRevPerfPrices() {
+  const history = loadRevHistory();
+  let updated   = false;
+  const btn     = document.getElementById('revPerfUpdateBtn');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ 조회 중...'; }
+
+  for (const session of history) {
+    const daysPassed = (Date.now() - session.ts) / 864e5;
+    for (const stock of session.stocks) {
+      if (stock.prices.t5) continue;
+      if (daysPassed < 5) continue;
+      const sym = session.market === 'kr' ? stock.ticker + '.KS' : stock.ticker;
+      try {
+        const q = await apiFetch(`/quote?symbol=${encodeURIComponent(sym)}`);
+        if (q && q.price) {
+          stock.prices.t5 = {
+            price:    q.price,
+            gain_pct: parseFloat(((q.price - stock.entry_price) / stock.entry_price * 100).toFixed(2)),
+            date:     new Date().toLocaleDateString('ko-KR'),
+          };
+          updated = true;
+        }
+      } catch {}
+      await new Promise(r => setTimeout(r, 300));
+    }
+  }
+
+  if (updated) saveRevHistoryData(history);
+  if (btn) { btn.disabled = false; btn.textContent = '↺ 업데이트'; }
+  return history;
+}
+
+function getRevSignalStats(history) {
+  const stats = {};
+  for (const session of history) {
+    for (const stock of session.stocks) {
+      const t5 = stock.prices.t5;
+      if (!t5) continue;
+      const win = t5.gain_pct >= 5;  // 반전은 +5% 이상이 기준
+      for (const sig of (stock.signals || [])) {
+        // 신호명에서 숫자/퍼센트 제거해서 기준 키로 만들기
+        const key = sig.replace(/[\d.]+[x%]/g, '').trim().replace(/\s+/g, ' ');
+        if (!stats[key]) stats[key] = { wins: 0, total: 0 };
+        stats[key].total++;
+        if (win) stats[key].wins++;
+      }
+    }
+  }
+  return Object.entries(stats)
+    .filter(([, s]) => s.total >= 2)
+    .map(([sig, s]) => ({ sig, wins: s.wins, total: s.total, rate: Math.round(s.wins / s.total * 100) }))
+    .sort((a, b) => b.rate - a.rate);
+}
+
+function adaptRevWeights(stats) {
+  const weights = loadRevWeights();
+  const changes = [];
+  stats.forEach(s => {
+    if (s.total < 5) return;
+    const baseKey = Object.keys(REV_DEFAULT_W).find(k => s.sig.startsWith(k.split(' ')[0]));
+    if (!baseKey) return;
+    const cur = weights[baseKey] ?? REV_DEFAULT_W[baseKey];
+    if (s.rate >= 70 && cur < 5) {
+      const nw = Math.min(5, parseFloat((cur + 0.5).toFixed(1)));
+      weights[baseKey] = nw;
+      changes.push({ sig: baseKey, from: cur, to: nw, rate: s.rate, dir: 'up' });
+    } else if (s.rate < 35 && cur > 0.5) {
+      const nw = Math.max(0.5, parseFloat((cur - 0.5).toFixed(1)));
+      weights[baseKey] = nw;
+      changes.push({ sig: baseKey, from: cur, to: nw, rate: s.rate, dir: 'down' });
+    }
+  });
+  if (changes.length) saveRevWeights(weights);
+  return { weights, changes };
+}
+
+function renderRevFeedback(history, stats, changes) {
+  const el = document.getElementById('revFeedbackEl');
+  const measured    = history.flatMap(s => s.stocks).filter(s => s.prices.t5);
+  const wins        = measured.filter(s => s.prices.t5.gain_pct >= 5);
+  const overallRate = measured.length ? Math.round(wins.length / measured.length * 100) : null;
+
+  if (!measured.length && !changes.length) { el.classList.add('hidden'); return; }
+
+  let html = '<div class="rev-feedback-title">🤖 AI 피드백 & 자동 학습 현황</div>';
+
+  if (overallRate !== null) {
+    html += `<div class="fb-line">전체 적중률 (T+5, +5% 기준): <strong class="${overallRate >= 50 ? 'up' : 'down'}">${overallRate}% (${wins.length}/${measured.length}건)</strong></div>`;
+  }
+
+  if (changes.length) {
+    html += '<div class="fb-section">⚙ 신호 가중치 자동 조정</div>';
+    changes.forEach(c => {
+      html += `<div class="fb-change">"${escHtml(c.sig)}" ${c.from} → <strong>${c.to}</strong>
+        <span class="weight-tag ${c.dir === 'up' ? 'weight-up' : 'weight-down'}">${c.dir === 'up' ? '▲ 강화' : '▼ 약화'} (승률 ${c.rate}%)</span></div>`;
+    });
+  }
+
+  const poor   = stats.filter(s => s.total >= 3 && s.rate < 40);
+  const strong = stats.filter(s => s.total >= 3 && s.rate >= 65);
+
+  if (strong.length) {
+    html += '<div class="fb-section">✅ 신뢰도 높은 신호</div>';
+    strong.forEach(s => { html += `<div class="fb-good">"${escHtml(s.sig)}" — 승률 ${s.rate}% (${s.wins}/${s.total})</div>`; });
+  }
+  if (poor.length) {
+    html += '<div class="fb-section">⚠ 신뢰도 낮은 신호 (단독 진입 주의)</div>';
+    poor.forEach(s => { html += `<div class="fb-warn">"${escHtml(s.sig)}" — 승률 ${s.rate}% (${s.wins}/${s.total}) → 추가 조건 확인 필요</div>`; });
+  }
+
+  if (!strong.length && !poor.length && !changes.length) {
+    html += '<div class="fb-line" style="color:var(--muted)">데이터 축적 중... 5건 이상 측정 후 분석이 시작됩니다.</div>';
+  }
+
+  el.innerHTML = html;
+  el.classList.remove('hidden');
+}
+
+function renderRevPerfTab(history) {
+  const statsEl    = document.getElementById('revPerfStats');
+  const sessionsEl = document.getElementById('revPerfSessions');
+  const emptyEl    = document.getElementById('revPerfEmpty');
+  const valid      = (history || []).filter(s => s.stocks && s.stocks.length);
+
+  if (!valid.length) {
+    emptyEl.classList.remove('hidden');
+    statsEl.classList.add('hidden');
+    sessionsEl.innerHTML = '';
+    return;
+  }
+  emptyEl.classList.add('hidden');
+
+  // 신호 승률 + 가중치 학습
+  const stats = getRevSignalStats(history);
+  const { changes } = adaptRevWeights(stats);
+  renderRevFeedback(history, stats, changes);
+
+  // 시그널 승률 바
+  if (stats.length) {
+    statsEl.innerHTML = `<div class="perf-stats-title">신호별 승률 (T+5, +5% 기준)</div>` +
+      stats.map(s => {
+        const col = s.rate >= 65 ? 'var(--green)' : s.rate >= 40 ? 'var(--violet)' : 'var(--red)';
+        return `<div class="sig-stat-row">
+          <span class="sig-stat-name">${escHtml(s.sig)}</span>
+          <div class="sig-bar-wrap"><div class="sig-bar" style="width:${s.rate}%;background:${col}"></div></div>
+          <span class="sig-stat-rate ${s.rate >= 65 ? 'up' : s.rate < 40 ? 'down' : ''}">${s.rate}%</span>
+          <span class="sig-stat-cnt">${s.wins}/${s.total}</span>
+        </div>`;
+      }).join('');
+    statsEl.classList.remove('hidden');
+  } else {
+    statsEl.classList.add('hidden');
+  }
+
+  // 세션 목록
+  sessionsEl.innerHTML = valid.map(session => {
+    const measured  = session.stocks.filter(s => s.prices.t5);
+    const wins      = measured.filter(s => s.prices.t5.gain_pct >= 5);
+    const pending   = session.stocks.filter(s => !s.prices.t5);
+    const winRate   = measured.length ? Math.round(wins.length / measured.length * 100) : null;
+    const avgGain   = measured.length
+      ? (measured.reduce((a, s) => a + s.prices.t5.gain_pct, 0) / measured.length).toFixed(1)
+      : null;
+    const days = Math.floor((Date.now() - session.ts) / 864e5);
+    const mkt  = session.market === 'us' ? '🇺🇸' : '🇰🇷';
+
+    const stocksHtml = session.stocks.map(stock => {
+      const t5   = stock.prices.t5;
+      const isWin  = t5 && t5.gain_pct >= 5;
+      const isLoss = t5 && t5.gain_pct < 0;
+      const scoreCls = stock.score >= 10 ? 'score-s' : stock.score >= 7 ? 'score-a' : 'score-b';
+      const name = resolveName(stock.ticker, session.market);
+      return `<div class="perf-stock ${isWin ? 'win' : isLoss ? 'loss' : ''}" style="${isWin ? '' : isLoss ? '' : 'border-left-color:var(--violet)'}">
+        <div class="perf-stock-top">
+          <div class="perf-stock-left">
+            <div class="score-badge ${scoreCls}" style="width:26px;height:26px;font-size:11px">${stock.score}</div>
+            <div>
+              <div class="perf-sname">${escHtml(name)}</div>
+              <div class="perf-scode">${stock.ticker} · 진입 ${formatPrice(stock.entry_price, session.market)}</div>
+            </div>
+          </div>
+          <div class="perf-results">
+            ${t5 ? `<div class="perf-result ${t5.gain_pct >= 0 ? 'up' : 'down'}">T+5 ${t5.gain_pct >= 0 ? '+' : ''}${t5.gain_pct}% ${isWin ? '✅' : isLoss ? '❌' : '▷'}</div>`
+                 : '<div class="perf-result muted">T+5 ⏳ (5일 후 측정)</div>'}
+          </div>
+        </div>
+        ${stock.signals.length ? `<div class="perf-sigs">${stock.signals.map(s => `<span class="sig-tag" style="background:rgba(163,113,247,.1);color:var(--violet)">${escHtml(s)}</span>`).join('')}</div>` : ''}
+      </div>`;
+    }).join('');
+
+    return `<div class="perf-session">
+      <div class="perf-session-hdr">
+        <div><span class="perf-date">${mkt} ${session.date}</span><span class="perf-meta">${session.stocks.length}종목 · ${days}일 경과</span></div>
+        <div class="perf-summary">
+          ${winRate !== null ? `<span class="perf-wr ${winRate >= 50 ? 'up' : winRate < 30 ? 'down' : ''}" style="color:var(--violet)">적중 ${winRate}%</span>` : ''}
+          ${avgGain !== null ? `<span class="perf-avg ${avgGain >= 0 ? 'up' : 'down'}">${avgGain >= 0 ? '+' : ''}${avgGain}%</span>` : ''}
+          ${pending.length ? `<span class="perf-pending">⏳${pending.length}건</span>` : ''}
+        </div>
+      </div>
+      <div class="perf-stock-list">${stocksHtml}</div>
+    </div>`;
+  }).join('');
+}
+
+function switchRevSubTab(tab) {
+  revSubTab = tab;
+  document.querySelectorAll('.rev-stab').forEach(b =>
+    b.classList.toggle('active', b.dataset.stab === tab));
+  document.getElementById('revScreenSection').classList.toggle('hidden', tab !== 'screener');
+  document.getElementById('revPerfSection').classList.toggle('hidden', tab !== 'perf');
+  if (tab === 'perf') {
+    updateRevPerfPrices().then(hist => renderRevPerfTab(hist));
+  }
+}
+
 /* ── 보유종목 관리 ── */
 let ownedMap    = {};  // ticker → purchase info
 let _scItemMap  = {};  // ticker → screener item (모달용)
@@ -266,34 +810,40 @@ function openBuyModal(ticker) {
 }
 
 function closeBuyModal() {
-  document.getElementById('buyModal').classList.add('hidden');
-  _buyTicker = null;
+  const modal = document.getElementById('buyModal');
+  modal.classList.add('hidden');
+  modal.dataset.mode = '';
+  _buyTicker    = null;
+  _revBuyTicker = null;
 }
 
 async function confirmBuy() {
-  const item = _scItemMap[_buyTicker];
+  const isRev  = document.getElementById('buyModal').dataset.mode === 'rev';
+  const ticker = isRev ? _revBuyTicker : _buyTicker;
+  const item   = isRev ? _revLastRes.find(r => r.ticker === ticker) : _scItemMap[ticker];
   if (!item) return;
   const price = parseFloat(document.getElementById('buyPrice').value);
   const qty   = parseInt(document.getElementById('buyQty').value, 10);
   if (!price || !qty || qty < 1) { alert('매수가와 수량을 입력하세요.'); return; }
 
-  const ex = calcExitPlan(item);
+  const ex     = isRev ? calcRevExitPlan(item) : calcExitPlan(item);
+  const market = isRev ? revMarket : screenerMarket;
   try {
     const res = await fetch(SERVER + '/purchase', {
       method: 'POST',
       headers: { ...HDR, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        ticker:     item.ticker,
-        name:       item.name,
-        market:     screenerMarket,
+        ticker:      item.ticker,
+        name:        item.name,
+        market,
         entry_price: price,
-        quantity:   qty,
-        score:      item.score,
-        signals:    item.signals,
-        rsi:        item.rsi,
-        target_pct: ex.targetPct,
-        stop_pct:   ex.stopPct,
-        hold_days:  ex.holdDaysNum,
+        quantity:    qty,
+        score:       item.score,
+        signals:     item.signals,
+        rsi:         item.rsi,
+        target_pct:  ex.targetPct,
+        stop_pct:    ex.stopPct,
+        hold_days:   ex.holdDaysNum,
       }),
     });
     if (!res.ok) throw new Error('서버 오류');
@@ -301,7 +851,8 @@ async function confirmBuy() {
     if (data.error) throw new Error(data.error);
     ownedMap[item.ticker] = { ticker: item.ticker, name: item.name };
     closeBuyModal();
-    renderScreenerResults(_lastScRes);
+    if (isRev) renderRevResults(_revLastRes);
+    else renderScreenerResults(_lastScRes);
     alert(`✅ ${item.name} 매수 등록!\n서버가 10분마다 매도 조건을 확인하고\n카카오톡으로 알림을 보내드립니다.`);
   } catch (e) {
     alert('등록 실패: ' + e.message);
@@ -313,7 +864,8 @@ async function sellStock(ticker) {
   try {
     await fetch(SERVER + `/purchase/${ticker}`, { method: 'DELETE', headers: HDR });
     delete ownedMap[ticker];
-    renderScreenerResults(_lastScRes);
+    if (_revLastRes.find(r => r.ticker === ticker)) renderRevResults(_revLastRes);
+    if (_lastScRes.find(r => r.ticker === ticker))  renderScreenerResults(_lastScRes);
   } catch (e) {
     alert('처리 실패: ' + e.message);
   }
@@ -1176,6 +1728,23 @@ document.getElementById('perRefreshBtn').addEventListener('click', () => runPerS
 
 document.getElementById('perfUpdateBtn').addEventListener('click', () =>
   updatePerfPrices().then(hist => renderPerfTab(hist)));
+
+document.querySelectorAll('.rev-stab').forEach(btn =>
+  btn.addEventListener('click', () => switchRevSubTab(btn.dataset.stab)));
+
+document.querySelectorAll('.rev-mkt').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.rev-mkt').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    revMarket = btn.dataset.m;
+    ['revList', 'revSummary', 'revEmpty'].forEach(id => document.getElementById(id).classList.add('hidden'));
+  });
+});
+
+document.getElementById('revRunBtn').addEventListener('click', () => runRevScreener(false));
+document.getElementById('revRefreshBtn').addEventListener('click', () => runRevScreener(true));
+document.getElementById('revPerfUpdateBtn').addEventListener('click', () =>
+  updateRevPerfPrices().then(hist => renderRevPerfTab(hist)));
 
 document.querySelectorAll('.wl-tab').forEach(btn => {
   btn.addEventListener('click', () => {

@@ -1,6 +1,7 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
+  --violet: #a371f7;
   --bg: #0d1117;
   --surface: #161b22;
   --border: #30363d;
@@ -282,7 +283,8 @@ body {
   cursor: pointer;
   font-size: 13px;
 }
-.run-btn.gold { background: var(--gold); }
+.run-btn.gold   { background: var(--gold); }
+.run-btn.violet { background: var(--violet); color: #fff; }
 .run-btn:disabled { opacity: .5; cursor: not-allowed; }
 .icon-btn {
   padding: 8px 12px;
@@ -480,6 +482,56 @@ body {
 }
 .wl-remove:active { color: var(--red); }
 .wl-empty { padding: 40px 0; text-align: center; color: var(--muted); }
+
+/* ── 반전예상주 탭 ── */
+.rev-subtabs {
+  display: flex; gap: 6px; padding: 4px 0 8px;
+}
+.rev-stab {
+  flex: 1; padding: 9px; border: 1px solid var(--border);
+  background: transparent; color: var(--muted);
+  border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600;
+}
+.rev-stab.active { background: var(--violet); color: #fff; border-color: var(--violet); }
+
+.rev-mkt {
+  padding: 7px 14px; border: 1px solid var(--border);
+  background: transparent; color: var(--muted);
+  border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600;
+}
+.rev-mkt.active { background: var(--violet); color: #fff; border-color: var(--violet); }
+
+.violet-spin { border-top-color: var(--violet) !important; }
+
+/* 반전 카드 */
+.rev-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--violet);
+  border-radius: 12px; padding: 12px 14px; cursor: pointer;
+}
+.rev-card:active { background: var(--bg); }
+.rev-score { background: rgba(163,113,247,.2); color: var(--violet); border: 2px solid var(--violet); }
+
+/* 반전 성과·피드백 */
+.rev-feedback {
+  background: var(--surface);
+  border: 1px solid rgba(163,113,247,.4);
+  border-radius: 12px; padding: 14px;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.rev-feedback-title { font-size: 13px; font-weight: 700; color: var(--violet); }
+.fb-line  { font-size: 12px; }
+.fb-section { font-size: 11px; color: var(--muted); font-weight: 700; margin-top: 6px; }
+.fb-change { font-size: 12px; color: var(--accent); padding: 2px 0; }
+.fb-warn   { font-size: 12px; color: var(--red); padding: 2px 0; }
+.fb-good   { font-size: 12px; color: var(--green); padding: 2px 0; }
+.weight-tag {
+  display: inline-block; font-size: 10px; padding: 1px 6px;
+  border-radius: 6px; font-weight: 700; margin-left: 4px;
+}
+.weight-up   { background: rgba(63,185,80,.15);  color: var(--green); }
+.weight-down { background: rgba(248,81,73,.15);  color: var(--red); }
 
 /* ── 매수 모달 ── */
 .modal-overlay {
