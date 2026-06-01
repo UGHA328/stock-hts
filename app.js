@@ -301,7 +301,7 @@ async function screenOne(symbol) {
 }
 
 /* 배치 처리 (5개씩) */
-async function batchScreen(list) {
+async function batchScreen(list, market = 'us') {
   const results = [];
   for (let i = 0; i < list.length; i += 5) {
     const chunk = list.slice(i, i + 5);
@@ -309,7 +309,22 @@ async function batchScreen(list) {
     settled.forEach(r => { if (r.status === 'fulfilled' && r.value) results.push(r.value); });
     if (i + 5 < list.length) await new Promise(r => setTimeout(r, 300));
   }
-  return results.sort((a, b) => b.score - a.score);
+  const sorted = results.sort((a, b) => b.score - a.score);
+
+  // US 종목: 배치로 회사 영문명 보완
+  if (market === 'us' && sorted.length > 0) {
+    try {
+      const syms = sorted.map(r => r.ticker).join(',');
+      const data = await apiFetch(`/batch?symbols=${encodeURIComponent(syms)}`);
+      const nameMap = {};
+      (data.quoteResponse?.result || []).forEach(q => {
+        if (q.shortName) nameMap[q.symbol] = q.shortName;
+      });
+      sorted.forEach(r => { if (nameMap[r.ticker]) r.name = nameMap[r.ticker]; });
+    } catch {}
+  }
+
+  return sorted;
 }
 
 /* ── 급등 스크리너 실행 ── */
@@ -332,7 +347,7 @@ async function runScreener(refresh = false) {
 
   try {
     const stockList = screenerMarket === 'us' ? US_SCREEN_LIST : KR_SCREEN_LIST;
-    const results = await batchScreen(stockList);
+    const results = await batchScreen(stockList, screenerMarket);
     scCacheSet(cacheKey, results);
     renderScreenerResults(results);
   } catch (e) {
