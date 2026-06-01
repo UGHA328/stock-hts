@@ -344,6 +344,7 @@ function renderScreenerResults(results) {
       selectStock(card.dataset.code, card.dataset.name);
     });
   });
+
   list.classList.remove('hidden');
 }
 
@@ -458,6 +459,7 @@ function switchTab(tabId) {
   document.querySelectorAll('.nav-btn').forEach(b =>
     b.classList.toggle('active', b.dataset.tab === tabId));
   if (tabId === 'watch') renderWatchlist();
+  if (tabId === 'home') document.getElementById('searchInput').focus();
 }
 
 /* ── 마켓 전환 ── */
@@ -654,16 +656,6 @@ document.getElementById('addWatchBtn').addEventListener('click', () => {
   }
   document.getElementById('addWatchBtn').textContent = '✅ 추가됨';
   setTimeout(() => { document.getElementById('addWatchBtn').textContent = '⭐ 관심종목 추가'; }, 1500);
-});
-
-document.querySelectorAll('.mode-tab').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('.mode-tab').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    const mode = btn.dataset.mode;
-    document.getElementById('momentumPanel').classList.toggle('hidden', mode !== 'momentum');
-    document.getElementById('valuePanel').classList.toggle('hidden', mode !== 'value');
-  });
 });
 
 document.querySelectorAll('.sc-tab').forEach(btn => {
