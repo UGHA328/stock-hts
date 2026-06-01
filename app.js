@@ -33,11 +33,13 @@ const KR_SCREEN_LIST = [
   '001680.KS','004990.KS','024110.KS','000100.KS','002790.KS'
 ];
 
-/* ── Yahoo Finance API ── */
+/* ── Yahoo Finance API (CORS 프록시 경유) ── */
 const YF = 'https://query2.finance.yahoo.com';
+const PROXY = 'https://corsproxy.io/?url=';
 
 async function yfFetch(path) {
-  const res = await fetch(YF + path, { headers: { 'Accept': 'application/json' } });
+  const url = PROXY + encodeURIComponent(YF + path);
+  const res = await fetch(url);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
 }
