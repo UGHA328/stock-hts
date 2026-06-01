@@ -61,6 +61,22 @@ const KR_STOCKS = [
   { code:'005870', name:'휴니드테크놀러지스' }, { code:'000990', name:'DB하이텍' },
 ];
 
+/* ── 미국 스크리너 종목 영문명 ── */
+const US_NAMES = {
+  'AAPL':'Apple','MSFT':'Microsoft','NVDA':'NVIDIA','AMZN':'Amazon','META':'Meta Platforms',
+  'GOOGL':'Alphabet','LLY':'Eli Lilly','AVGO':'Broadcom','TSLA':'Tesla','WMT':'Walmart',
+  'JPM':'JPMorgan Chase','V':'Visa','UNH':'UnitedHealth','XOM':'ExxonMobil','ORCL':'Oracle',
+  'MA':'Mastercard','COST':'Costco','HD':'Home Depot','PG':'Procter & Gamble','JNJ':'Johnson & Johnson',
+  'ABBV':'AbbVie','BAC':'Bank of America','KO':'Coca-Cola','MRK':'Merck','CVX':'Chevron',
+  'NFLX':'Netflix','AMD':'AMD','PEP':'PepsiCo','TMO':'Thermo Fisher','ADBE':'Adobe',
+  'CRM':'Salesforce','ACN':'Accenture','MCD':"McDonald's",'ABT':'Abbott','WFC':'Wells Fargo',
+  'PM':'Philip Morris','TXN':'Texas Instruments','NEE':'NextEra Energy','ISRG':'Intuitive Surgical','IBM':'IBM',
+  'CAT':'Caterpillar','AMGN':'Amgen','INTU':'Intuit','GS':'Goldman Sachs','SPGI':'S&P Global',
+  'MS':'Morgan Stanley','BLK':'BlackRock','AXP':'American Express','NOW':'ServiceNow','BSX':'Boston Scientific',
+  'SCHW':'Charles Schwab','ZTS':'Zoetis','PANW':'Palo Alto Networks','ETN':'Eaton','SO':'Southern Company',
+  'HCA':'HCA Healthcare','LRCX':'Lam Research','KLAC':'KLA Corp','MU':'Micron','QCOM':'Qualcomm',
+};
+
 /* ── 스크리너 종목 목록 ── */
 const US_SCREEN_LIST = [
   'AAPL','MSFT','NVDA','AMZN','META','GOOGL','LLY','AVGO','TSLA','WMT',
@@ -84,6 +100,7 @@ const KR_SCREEN_LIST = [
 ];
 
 /* ── Flask 서버 (ngrok) ── */
+const _V = 14; // version
 const SERVER = 'https://bucked-swaddling-revenge.ngrok-free.dev';
 const HDR = { 'ngrok-skip-browser-warning': '1' };
 
@@ -293,6 +310,14 @@ async function updatePerfPrices() {
   return history;
 }
 
+function resolveName(ticker, market) {
+  if (market === 'kr') {
+    const e = KR_STOCKS.find(s => s.code === ticker);
+    return e ? e.name : ticker;
+  }
+  return US_NAMES[ticker] || ticker;
+}
+
 function analyzeFailure(stock) {
   const r = [];
   if (stock.rsi > 75) r.push('RSI 과매수 진입');
@@ -372,12 +397,13 @@ function renderPerfTab(history) {
       const isLoss = t1 && t1.gain_pct < 0;
       const fails  = (t1 && t1.gain_pct < 2) ? analyzeFailure(stock) : [];
       const scoreCls = stock.score >= 10 ? 'score-s' : stock.score >= 7 ? 'score-a' : 'score-b';
+      const displayName = resolveName(stock.ticker, session.market);
       return `<div class="perf-stock ${isWin ? 'win' : isLoss ? 'loss' : ''}">
         <div class="perf-stock-top">
           <div class="perf-stock-left">
             <div class="score-badge ${scoreCls}" style="width:26px;height:26px;font-size:11px">${stock.score}</div>
             <div>
-              <div class="perf-sname">${escHtml(stock.name)}</div>
+              <div class="perf-sname">${escHtml(displayName)}</div>
               <div class="perf-scode">${stock.ticker} · 진입 ${formatPrice(stock.entry_price, session.market)}</div>
             </div>
           </div>
@@ -482,7 +508,7 @@ async function screenOne(symbol) {
     const krEntry = KR_STOCKS.find(s => s.code === ticker);
     return {
       ticker,
-      name: krEntry ? krEntry.name : ticker,
+      name: krEntry ? krEntry.name : (US_NAMES[ticker] || ticker),
       price,
       change_pct: parseFloat(chgPct.toFixed(2)),
       rsi:        rsi !== null ? parseFloat(rsi.toFixed(1)) : 0,
