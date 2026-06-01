@@ -95,9 +95,9 @@ async function yfFetch(path) {
 }
 
 async function fetchQuote(symbol) {
-  const [chartData, quoteData] = await Promise.all([
+  const [chartData, summaryData] = await Promise.all([
     yfFetch(`/v8/finance/chart/${symbol}?interval=1d&range=5d`),
-    yfFetch(`/v7/finance/quote?symbols=${symbol}&fields=trailingPE,forwardPE,priceToBook,trailingEps,dividendYield,marketCap,fiftyTwoWeekHigh,fiftyTwoWeekLow`).catch(() => null),
+    yfFetch(`/v10/finance/quoteSummary/${symbol}?modules=summaryDetail,defaultKeyStatistics`).catch(() => null),
   ]);
   const result = chartData.chart?.result?.[0];
   if (!result) throw new Error('데이터 없음');
@@ -106,7 +106,9 @@ async function fetchQuote(symbol) {
   const prev  = meta.chartPreviousClose || meta.previousClose || price;
   const chg   = price - prev;
   const chgPct = prev ? (chg / prev * 100) : 0;
-  const q = quoteData?.quoteResponse?.result?.[0] || {};
+  const sd = summaryData?.quoteSummary?.result?.[0]?.summaryDetail || {};
+  const ks = summaryData?.quoteSummary?.result?.[0]?.defaultKeyStatistics || {};
+  const raw = v => v?.raw ?? null;
   return {
     price,
     change:     chg,
@@ -117,14 +119,14 @@ async function fetchQuote(symbol) {
     volume: meta.regularMarketVolume  || 0,
     name:   meta.shortName || meta.longName || symbol,
     currency: meta.currency || 'USD',
-    per:        q.trailingPE      || null,
-    fpe:        q.forwardPE       || null,
-    pbr:        q.priceToBook     || null,
-    eps:        q.trailingEps     || null,
-    dividend:   q.dividendYield   ? (q.dividendYield * 100) : null,
-    market_cap: q.marketCap       || null,
-    week52_high: q.fiftyTwoWeekHigh || null,
-    week52_low:  q.fiftyTwoWeekLow  || null,
+    per:         raw(sd.trailingPE),
+    fpe:         raw(sd.forwardPE),
+    pbr:         raw(sd.priceToBook),
+    eps:         raw(ks.trailingEps),
+    dividend:    sd.dividendYield?.raw ? sd.dividendYield.raw * 100 : null,
+    market_cap:  raw(sd.marketCap),
+    week52_high: raw(sd.fiftyTwoWeekHigh),
+    week52_low:  raw(sd.fiftyTwoWeekLow),
   };
 }
 
