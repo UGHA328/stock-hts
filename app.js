@@ -159,6 +159,21 @@ function calcMA(closes, period) {
   return closes.slice(-period).reduce((a,b) => a+b, 0) / period;
 }
 
+function calcBBSeries(closes, period = 20) {
+  const upper = [], mid = [], lower = [];
+  for (let i = 0; i < closes.length; i++) {
+    if (i < period - 1) { upper.push(null); mid.push(null); lower.push(null); continue; }
+    const slice = closes.slice(i - period + 1, i + 1).filter(v => v != null);
+    if (slice.length < period) { upper.push(null); mid.push(null); lower.push(null); continue; }
+    const mean = slice.reduce((a, b) => a + b, 0) / period;
+    const std  = Math.sqrt(slice.reduce((a, b) => a + (b - mean) ** 2, 0) / period);
+    mid.push(parseFloat(mean.toFixed(2)));
+    upper.push(parseFloat((mean + 2 * std).toFixed(2)));
+    lower.push(parseFloat((mean - 2 * std).toFixed(2)));
+  }
+  return { upper, mid, lower };
+}
+
 function calcBB(closes, period = 20) {
   if (closes.length < period) return { above: false, squeeze: false };
   const slice = closes.slice(-period);
@@ -593,30 +608,70 @@ function updateStockHeader(q) {
 
 /* ── 차트 ── */
 function initCharts() {
-  const base = {
-    responsive: true, maintainAspectRatio: false,
-    plugins: { legend: { display: false } },
-    scales: {
-      x: { ticks: { color: '#8b949e', maxTicksLimit: 6 }, grid: { color: '#21262d' } },
-      y: { ticks: { color: '#8b949e' }, grid: { color: '#21262d' }, position: 'right' },
-    },
+  const scaleBase = {
+    x: { ticks: { color: '#8b949e', maxTicksLimit: 6 }, grid: { color: '#21262d' } },
+    y: { ticks: { color: '#8b949e' }, grid: { color: '#21262d' }, position: 'right' },
   };
   priceChart = new Chart(document.getElementById('priceChart'), {
     type: 'line',
-    data: { labels: [], datasets: [{ data: [], borderColor: '#58a6ff', backgroundColor: 'rgba(88,166,255,.1)', fill: true, tension: 0.3, pointRadius: 0 }] },
-    options: { ...base, plugins: { ...base.plugins, tooltip: { mode: 'index', intersect: false } } },
+    data: {
+      labels: [],
+      datasets: [
+        {
+          label: '종가', data: [],
+          borderColor: '#58a6ff', backgroundColor: 'rgba(88,166,255,.08)',
+          fill: false, tension: 0.3, pointRadius: 0, borderWidth: 2, order: 1,
+        },
+        {
+          label: 'BB 상단', data: [],
+          borderColor: 'rgba(255,120,80,.7)', borderDash: [5, 3],
+          borderWidth: 1, fill: false, pointRadius: 0, tension: 0, order: 2,
+        },
+        {
+          label: 'BB 중간', data: [],
+          borderColor: 'rgba(180,180,180,.5)', borderDash: [4, 3],
+          borderWidth: 1, fill: false, pointRadius: 0, tension: 0, order: 3,
+        },
+        {
+          label: 'BB 하단', data: [],
+          borderColor: 'rgba(80,200,130,.7)', borderDash: [5, 3],
+          borderWidth: 1,
+          fill: { target: 1, above: 'rgba(150,150,160,.07)' },
+          pointRadius: 0, tension: 0, order: 4,
+        },
+      ],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          display: true,
+          labels: { color: '#8b949e', boxWidth: 10, font: { size: 11 }, padding: 10 },
+        },
+        tooltip: { mode: 'index', intersect: false },
+      },
+      scales: scaleBase,
+    },
   });
   volumeChart = new Chart(document.getElementById('volumeChart'), {
     type: 'bar',
     data: { labels: [], datasets: [{ data: [], backgroundColor: 'rgba(88,166,255,.4)' }] },
-    options: { ...base, scales: { ...base.scales, y: { ...base.scales.y, ticks: { color: '#8b949e', callback: v => fmtVol(v) } } } },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: { ...scaleBase, y: { ...scaleBase.y, ticks: { color: '#8b949e', callback: v => fmtVol(v) } } },
+    },
   });
 }
 
 function updateCharts(d) {
   if (!d) return;
+  const bb = calcBBSeries(d.close || []);
   priceChart.data.labels = d.dates;
   priceChart.data.datasets[0].data = d.close;
+  priceChart.data.datasets[1].data = bb.upper;
+  priceChart.data.datasets[2].data = bb.mid;
+  priceChart.data.datasets[3].data = bb.lower;
   priceChart.update();
   volumeChart.data.labels = d.dates;
   volumeChart.data.datasets[0].data = d.volume;
