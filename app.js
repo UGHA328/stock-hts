@@ -11,6 +11,56 @@ let volumeChart = null;
 let searchTimer = null;
 const watchlist = { us: [], kr: [] };
 
+/* ── 한국 종목 내장 테이블 (한글 검색용) ── */
+const KR_STOCKS = [
+  { code:'005930', name:'삼성전자' }, { code:'000660', name:'SK하이닉스' },
+  { code:'373220', name:'LG에너지솔루션' }, { code:'207940', name:'삼성바이오로직스' },
+  { code:'005380', name:'현대차' }, { code:'051910', name:'LG화학' },
+  { code:'006400', name:'삼성SDI' }, { code:'035420', name:'NAVER' },
+  { code:'003550', name:'LG' }, { code:'105560', name:'KB금융' },
+  { code:'055550', name:'신한지주' }, { code:'032830', name:'삼성생명' },
+  { code:'028260', name:'삼성물산' }, { code:'012330', name:'현대모비스' },
+  { code:'000270', name:'기아' }, { code:'096770', name:'SK이노베이션' },
+  { code:'034020', name:'두산에너빌리티' }, { code:'010130', name:'고려아연' },
+  { code:'011200', name:'HMM' }, { code:'000810', name:'삼성화재' },
+  { code:'003490', name:'대한항공' }, { code:'051900', name:'LG생활건강' },
+  { code:'066570', name:'LG전자' }, { code:'011170', name:'롯데케미칼' },
+  { code:'005490', name:'POSCO홀딩스' }, { code:'004020', name:'현대제철' },
+  { code:'017670', name:'SK텔레콤' }, { code:'030200', name:'KT' },
+  { code:'033780', name:'KT&G' }, { code:'009540', name:'HD한국조선해양' },
+  { code:'011070', name:'LG이노텍' }, { code:'139480', name:'이마트' },
+  { code:'086790', name:'하나금융지주' }, { code:'271560', name:'오리온' },
+  { code:'097950', name:'CJ제일제당' }, { code:'010950', name:'S-Oil' },
+  { code:'035720', name:'카카오' }, { code:'003670', name:'포스코퓨처엠' },
+  { code:'006800', name:'미래에셋증권' }, { code:'001680', name:'대상' },
+  { code:'004990', name:'롯데지주' }, { code:'024110', name:'기업은행' },
+  { code:'000100', name:'유한양행' }, { code:'002790', name:'아모레퍼시픽그룹' },
+  { code:'068270', name:'셀트리온' }, { code:'036570', name:'NC소프트' },
+  { code:'259960', name:'크래프톤' }, { code:'352820', name:'하이브' },
+  { code:'041510', name:'SM엔터테인먼트' }, { code:'035900', name:'JYP엔터테인먼트' },
+  { code:'122870', name:'와이지엔터테인먼트' }, { code:'015760', name:'한국전력' },
+  { code:'042700', name:'한미반도체' }, { code:'000720', name:'현대건설' },
+  { code:'009150', name:'삼성전기' }, { code:'005830', name:'DB손해보험' },
+  { code:'078930', name:'GS' }, { code:'009830', name:'한화솔루션' },
+  { code:'012450', name:'한화에어로스페이스' }, { code:'000880', name:'한화' },
+  { code:'023530', name:'롯데쇼핑' }, { code:'004170', name:'신세계' },
+  { code:'000080', name:'하이트진로' }, { code:'008770', name:'호텔신라' },
+  { code:'030000', name:'제일기획' }, { code:'047810', name:'한국항공우주' },
+  { code:'011780', name:'금호석유' }, { code:'001040', name:'CJ' },
+  { code:'000120', name:'CJ대한통운' }, { code:'035250', name:'강원랜드' },
+  { code:'047050', name:'포스코인터내셔널' }, { code:'028050', name:'삼성엔지니어링' },
+  { code:'267250', name:'HD현대' }, { code:'010140', name:'삼성중공업' },
+  { code:'329180', name:'현대중공업' }, { code:'000990', name:'DB하이텍' },
+  { code:'251270', name:'넷마블' }, { code:'263750', name:'펄어비스' },
+  { code:'293490', name:'카카오게임즈' }, { code:'035760', name:'CJ ENM' },
+  { code:'006360', name:'GS건설' }, { code:'000210', name:'DL' },
+  { code:'007070', name:'GS리테일' }, { code:'016360', name:'삼성증권' },
+  { code:'005940', name:'NH투자증권' }, { code:'071050', name:'한국금융지주' },
+  { code:'326030', name:'SK바이오팜' }, { code:'302440', name:'SK바이오사이언스' },
+  { code:'145020', name:'휴젤' }, { code:'196170', name:'알테오젠' },
+  { code:'005870', name:'휴니드테크놀러지스' }, { code:'000990', name:'DB하이텍' },
+];
+
 /* ── 스크리너 종목 목록 ── */
 const US_SCREEN_LIST = [
   'AAPL','MSFT','NVDA','AMZN','META','GOOGL','LLY','AVGO','TSLA','WMT',
@@ -80,23 +130,30 @@ async function fetchChart(symbol) {
 }
 
 async function fetchSearch(query) {
-  if (currentMarket === 'kr' && /^\d{6}$/.test(query.trim())) {
-    const sym = query.trim() + '.KS';
-    try {
-      const q = await fetchQuote(sym);
-      return [{ symbol: sym, name: q.name, display: query.trim() }];
-    } catch { return []; }
+  const q = query.trim();
+  if (currentMarket === 'kr') {
+    // 6자리 코드 직접 조회
+    if (/^\d{6}$/.test(q)) {
+      const sym = q + '.KS';
+      try {
+        const qt = await fetchQuote(sym);
+        return [{ symbol: sym, name: qt.name, display: q }];
+      } catch { return []; }
+    }
+    // 한글/영문 이름으로 내장 테이블 검색
+    const lower = q.toLowerCase();
+    const matches = KR_STOCKS.filter(s =>
+      s.name.includes(q) || s.code.startsWith(q) || s.name.toLowerCase().includes(lower)
+    ).slice(0, 10);
+    return matches.map(s => ({ symbol: s.code + '.KS', name: s.name, display: s.code }));
   }
-  const data = await yfFetch(`/v1/finance/search?q=${query}&newsCount=0&enableFuzzyQuery=false`);
+  // 미국: 야후 파이낸스 검색
+  const data = await yfFetch(`/v1/finance/search?q=${q}&newsCount=0&enableFuzzyQuery=false`);
   const quotes = data.quotes || [];
   return quotes
-    .filter(q => q.quoteType === 'EQUITY')
-    .filter(q => {
-      if (currentMarket === 'kr') return q.symbol.endsWith('.KS') || q.symbol.endsWith('.KQ');
-      return !q.symbol.includes('.');
-    })
+    .filter(qt => qt.quoteType === 'EQUITY' && !qt.symbol.includes('.'))
     .slice(0, 10)
-    .map(q => ({ symbol: q.symbol, name: q.shortname || q.longname || q.symbol, display: q.symbol }));
+    .map(qt => ({ symbol: qt.symbol, name: qt.shortname || qt.longname || qt.symbol, display: qt.symbol }));
 }
 
 /* ── 기술적 지표 계산 ── */
