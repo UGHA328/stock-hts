@@ -159,6 +159,32 @@ function calcMA(closes, period) {
   return closes.slice(-period).reduce((a,b) => a+b, 0) / period;
 }
 
+function calcBB(closes, period = 20) {
+  if (closes.length < period) return { above: false, squeeze: false };
+  const slice = closes.slice(-period);
+  const mean  = slice.reduce((a, b) => a + b, 0) / period;
+  const std   = Math.sqrt(slice.reduce((a, b) => a + (b - mean) ** 2, 0) / period);
+  const upper = mean + 2 * std;
+  const lower = mean - 2 * std;
+  const last  = closes[closes.length - 1];
+  const bw    = mean > 0 ? (upper - lower) / mean : 1;
+
+  // 과거 20일 밴드폭과 비교해 수축 여부 판단
+  let histBw = 0;
+  if (closes.length >= period * 2) {
+    const prev = closes.slice(-period * 2, -period);
+    const pm = prev.reduce((a, b) => a + b, 0) / period;
+    const ps = Math.sqrt(prev.reduce((a, b) => a + (b - pm) ** 2, 0) / period);
+    histBw = pm > 0 ? (pm + 2*ps - (pm - 2*ps)) / pm : 1;
+  }
+
+  return {
+    above:   last > upper,
+    below:   last < lower,
+    squeeze: bw < histBw * 0.7 && bw < 0.12,
+  };
+}
+
 function volRatio(volumes) {
   if (volumes.length < 21) return 1;
   const avg = volumes.slice(-21, -1).reduce((a,b) => a + (b||0), 0) / 20;
@@ -213,6 +239,7 @@ async function screenOne(symbol) {
     const ma60    = calcMA(closes, Math.min(60, closes.length));
     const vr      = volRatio(volumes);
     const high52  = is52WkHigh(highs);
+    const bb      = calcBB(closes);
 
     let score = 0;
     const signals = [];
@@ -233,15 +260,19 @@ async function screenOne(symbol) {
 
     if (high52) { score += 2; signals.push('52주 신고가'); }
 
+    if (bb.above)   { score += 2; signals.push('BB 상단돌파'); }
+    else if (bb.squeeze) { score += 1; signals.push('BB 수축'); }
+
     if (chgPct >= 3)     score += 2;
     else if (chgPct >= 1) score += 1;
 
     if (score < 4) return null;
 
     const ticker = symbol.replace(/\.(KS|KQ)$/, '');
+    const krEntry = KR_STOCKS.find(s => s.code === ticker);
     return {
       ticker,
-      name:       ticker,
+      name: krEntry ? krEntry.name : ticker,
       price,
       change_pct: parseFloat(chgPct.toFixed(2)),
       rsi:        rsi !== null ? parseFloat(rsi.toFixed(1)) : 0,
