@@ -233,7 +233,15 @@ function is52WkHigh(highs) {
 const PERF_KEY = 'perf_history_v1';
 
 function loadHistory() {
-  try { const r = localStorage.getItem(PERF_KEY); return r ? JSON.parse(r) : []; } catch { return []; }
+  try {
+    const r = localStorage.getItem(PERF_KEY);
+    if (!r) return [];
+    const all = JSON.parse(r);
+    const cutoff = Date.now() - 7 * 864e5;          // 7일 이전 세션 제거
+    const fresh = all.filter(s => s.ts >= cutoff);
+    if (fresh.length !== all.length) saveHistory(fresh); // 자동 정리
+    return fresh;
+  } catch { return []; }
 }
 function saveHistory(h) {
   try { localStorage.setItem(PERF_KEY, JSON.stringify(h)); } catch {}
