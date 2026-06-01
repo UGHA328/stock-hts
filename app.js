@@ -212,6 +212,201 @@ function is52WkHigh(highs) {
   return highs[highs.length-1] >= max * 0.98;
 }
 
+/* ── 성과 추적 ── */
+const PERF_KEY = 'perf_history_v1';
+
+function loadHistory() {
+  try { const r = localStorage.getItem(PERF_KEY); return r ? JSON.parse(r) : []; } catch { return []; }
+}
+function saveHistory(h) {
+  try { localStorage.setItem(PERF_KEY, JSON.stringify(h)); } catch {}
+}
+
+function saveScreenerHistory(results, market) {
+  if (!results || !results.length) return;
+  const history = loadHistory();
+  history.unshift({
+    id:     Date.now(),
+    date:   new Date().toLocaleDateString('ko-KR'),
+    ts:     Date.now(),
+    market,
+    stocks: results.slice(0, 20).map(r => ({
+      ticker:              r.ticker,
+      name:                r.name,
+      entry_price:         r.price,
+      score:               r.score,
+      signals:             r.signals,
+      rsi:                 r.rsi,
+      vol_ratio:           r.vol_ratio,
+      change_pct_at_entry: r.change_pct,
+      golden:              r.golden,
+      prices: {},
+    })),
+  });
+  if (history.length > 30) history.splice(30);
+  saveHistory(history);
+}
+
+async function updatePerfPrices() {
+  const history = loadHistory();
+  let updated = false;
+  const btn = document.getElementById('perfUpdateBtn');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ 조회 중...'; }
+
+  for (const session of history) {
+    const daysPassed = (Date.now() - session.ts) / 864e5;
+    for (const stock of session.stocks) {
+      const sym = session.market === 'kr' ? stock.ticker + '.KS' : stock.ticker;
+      if (!stock.prices.t1 && daysPassed >= 1.5) {
+        try {
+          const q = await apiFetch(`/quote?symbol=${encodeURIComponent(sym)}`);
+          if (q && q.price) {
+            stock.prices.t1 = {
+              price:    q.price,
+              gain_pct: parseFloat(((q.price - stock.entry_price) / stock.entry_price * 100).toFixed(2)),
+              date:     new Date().toLocaleDateString('ko-KR'),
+            };
+            updated = true;
+          }
+        } catch {}
+        await new Promise(r => setTimeout(r, 250));
+      }
+      if (!stock.prices.t5 && daysPassed >= 7) {
+        try {
+          const q = await apiFetch(`/quote?symbol=${encodeURIComponent(sym)}`);
+          if (q && q.price) {
+            stock.prices.t5 = {
+              price:    q.price,
+              gain_pct: parseFloat(((q.price - stock.entry_price) / stock.entry_price * 100).toFixed(2)),
+              date:     new Date().toLocaleDateString('ko-KR'),
+            };
+            updated = true;
+          }
+        } catch {}
+        await new Promise(r => setTimeout(r, 250));
+      }
+    }
+  }
+
+  if (updated) saveHistory(history);
+  if (btn) { btn.disabled = false; btn.textContent = '↺ 업데이트'; }
+  return history;
+}
+
+function analyzeFailure(stock) {
+  const r = [];
+  if (stock.rsi > 75) r.push('RSI 과매수 진입');
+  if (stock.change_pct_at_entry > 5) r.push('당일 급등 후 진입');
+  if (stock.signals.includes('BB 상단돌파') && stock.vol_ratio < 2) r.push('BB 돌파 거래량 미확인');
+  if (stock.score <= 5) r.push('신호 강도 부족');
+  if (!stock.golden && !stock.macd_bull) r.push('MACD 미확인');
+  return r;
+}
+
+function getSignalStats(history) {
+  const stats = {};
+  for (const session of history) {
+    for (const stock of session.stocks) {
+      const t1 = stock.prices.t1;
+      if (!t1) continue;
+      const win = t1.gain_pct >= 2;
+      for (const sig of (stock.signals || [])) {
+        if (!stats[sig]) stats[sig] = { wins: 0, total: 0 };
+        stats[sig].total++;
+        if (win) stats[sig].wins++;
+      }
+    }
+  }
+  return Object.entries(stats)
+    .filter(([, s]) => s.total >= 2)
+    .map(([sig, s]) => ({ sig, wins: s.wins, total: s.total, rate: Math.round(s.wins / s.total * 100) }))
+    .sort((a, b) => b.rate - a.rate);
+}
+
+function renderPerfTab(history) {
+  const statsEl    = document.getElementById('perfStats');
+  const sessionsEl = document.getElementById('perfSessions');
+  const emptyEl    = document.getElementById('perfEmpty');
+  const valid      = (history || []).filter(s => s.stocks && s.stocks.length);
+
+  if (!valid.length) {
+    emptyEl.classList.remove('hidden');
+    statsEl.classList.add('hidden');
+    sessionsEl.innerHTML = '';
+    return;
+  }
+  emptyEl.classList.add('hidden');
+
+  const sigStats = getSignalStats(history);
+  if (sigStats.length) {
+    statsEl.innerHTML = `<div class="perf-stats-title">시그널 승률 (T+1 기준, ≥2% 상승)</div>` +
+      sigStats.map(s => {
+        const col = s.rate >= 60 ? 'var(--green)' : s.rate >= 40 ? 'var(--gold)' : 'var(--red)';
+        return `<div class="sig-stat-row">
+          <span class="sig-stat-name">${escHtml(s.sig)}</span>
+          <div class="sig-bar-wrap"><div class="sig-bar" style="width:${s.rate}%;background:${col}"></div></div>
+          <span class="sig-stat-rate ${s.rate >= 60 ? 'up' : s.rate < 40 ? 'down' : ''}">${s.rate}%</span>
+          <span class="sig-stat-cnt">${s.wins}/${s.total}</span>
+        </div>`;
+      }).join('');
+    statsEl.classList.remove('hidden');
+  } else {
+    statsEl.classList.add('hidden');
+  }
+
+  sessionsEl.innerHTML = valid.map(session => {
+    const measured = session.stocks.filter(s => s.prices.t1);
+    const wins     = measured.filter(s => s.prices.t1.gain_pct >= 2);
+    const pending  = session.stocks.filter(s => !s.prices.t1);
+    const winRate  = measured.length ? Math.round(wins.length / measured.length * 100) : null;
+    const avgGain  = measured.length
+      ? (measured.reduce((a, s) => a + s.prices.t1.gain_pct, 0) / measured.length).toFixed(1)
+      : null;
+    const days = Math.floor((Date.now() - session.ts) / 864e5);
+    const mkt  = session.market === 'us' ? '🇺🇸' : '🇰🇷';
+
+    const stocksHtml = session.stocks.map(stock => {
+      const t1 = stock.prices.t1;
+      const t5 = stock.prices.t5;
+      const isWin  = t1 && t1.gain_pct >= 2;
+      const isLoss = t1 && t1.gain_pct < 0;
+      const fails  = (t1 && t1.gain_pct < 2) ? analyzeFailure(stock) : [];
+      const scoreCls = stock.score >= 10 ? 'score-s' : stock.score >= 7 ? 'score-a' : 'score-b';
+      return `<div class="perf-stock ${isWin ? 'win' : isLoss ? 'loss' : ''}">
+        <div class="perf-stock-top">
+          <div class="perf-stock-left">
+            <div class="score-badge ${scoreCls}" style="width:26px;height:26px;font-size:11px">${stock.score}</div>
+            <div>
+              <div class="perf-sname">${escHtml(stock.name)}</div>
+              <div class="perf-scode">${stock.ticker} · 진입 ${formatPrice(stock.entry_price, session.market)}</div>
+            </div>
+          </div>
+          <div class="perf-results">
+            ${t1 ? `<div class="perf-result ${t1.gain_pct >= 0 ? 'up' : 'down'}">T+1 ${t1.gain_pct >= 0 ? '+' : ''}${t1.gain_pct}%</div>`
+                 : '<div class="perf-result muted">T+1 ⏳</div>'}
+            ${t5 ? `<div class="perf-result ${t5.gain_pct >= 0 ? 'up' : 'down'}">T+5 ${t5.gain_pct >= 0 ? '+' : ''}${t5.gain_pct}%</div>`
+                 : (t1 ? '<div class="perf-result muted">T+5 ⏳</div>' : '')}
+          </div>
+        </div>
+        ${fails.length ? `<div class="perf-fail">${fails.map(f => `<span class="fail-tag">${escHtml(f)}</span>`).join('')}</div>` : ''}
+        ${stock.signals.length ? `<div class="perf-sigs">${stock.signals.map(s => `<span class="sig-tag">${escHtml(s)}</span>`).join('')}</div>` : ''}
+      </div>`;
+    }).join('');
+
+    return `<div class="perf-session">
+      <div class="perf-session-hdr">
+        <div><span class="perf-date">${mkt} ${session.date}</span><span class="perf-meta">${session.stocks.length}종목 · ${days}일 경과</span></div>
+        <div class="perf-summary">
+          ${winRate !== null ? `<span class="perf-wr ${winRate >= 60 ? 'up' : winRate < 40 ? 'down' : ''}">승률 ${winRate}%</span>` : ''}
+          ${avgGain !== null ? `<span class="perf-avg ${avgGain >= 0 ? 'up' : 'down'}">${avgGain >= 0 ? '+' : ''}${avgGain}%</span>` : ''}
+          ${pending.length ? `<span class="perf-pending">⏳${pending.length}건</span>` : ''}
+        </div>
+      </div>
+      <div class="perf-stock-list">${stocksHtml}</div>
+    </div>`;
+  }).join('');
+}
+
 /* ── 스크리너 캐시 (localStorage) ── */
 function scCache(key) {
   try {
@@ -349,6 +544,7 @@ async function runScreener(refresh = false) {
     const stockList = screenerMarket === 'us' ? US_SCREEN_LIST : KR_SCREEN_LIST;
     const results = await batchScreen(stockList, screenerMarket);
     scCacheSet(cacheKey, results);
+    saveScreenerHistory(results, screenerMarket);
     renderScreenerResults(results);
   } catch (e) {
     alert('스크리너 오류: ' + e.message);
@@ -532,6 +728,7 @@ function switchTab(tabId) {
     b.classList.toggle('active', b.dataset.tab === tabId));
   if (tabId === 'watch') renderWatchlist();
   if (tabId === 'home') document.getElementById('searchInput').focus();
+  if (tabId === 'perf') updatePerfPrices().then(hist => renderPerfTab(hist));
 }
 
 /* ── 마켓 전환 ── */
@@ -814,6 +1011,9 @@ document.getElementById('runBtn').addEventListener('click', () => runScreener(fa
 document.getElementById('refreshBtn').addEventListener('click', () => runScreener(true));
 document.getElementById('perRunBtn').addEventListener('click', () => runPerScreener(false));
 document.getElementById('perRefreshBtn').addEventListener('click', () => runPerScreener(true));
+
+document.getElementById('perfUpdateBtn').addEventListener('click', () =>
+  updatePerfPrices().then(hist => renderPerfTab(hist)));
 
 document.querySelectorAll('.wl-tab').forEach(btn => {
   btn.addEventListener('click', () => {

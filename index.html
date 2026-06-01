@@ -7,7 +7,7 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
   <title>2425 주식 HTS</title>
-  <link rel="stylesheet" href="./style.css?v=7">
+  <link rel="stylesheet" href="./style.css?v=8">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
 </head>
 <body>
@@ -31,6 +31,10 @@
     <button class="nav-btn" data-tab="watch">
       <span class="nav-icon">⭐</span>
       <span class="nav-label">관심</span>
+    </button>
+    <button class="nav-btn" data-tab="perf">
+      <span class="nav-icon">📈</span>
+      <span class="nav-label">성과</span>
     </button>
   </nav>
 
@@ -138,6 +142,22 @@
         <div id="perEmpty" class="empty-msg hidden">데이터를 가져올 수 없습니다. 다시 시도해주세요.</div>
       </div>
 
+      <!-- 성과 탭 -->
+      <div id="tab-perf" class="tab-pane hidden">
+        <div class="perf-header">
+          <h3 style="font-size:15px;font-weight:700">급등주 성과 추적</h3>
+          <button id="perfUpdateBtn" class="icon-btn">↺ 업데이트</button>
+        </div>
+        <p class="sc-desc">T+1 (1거래일) · T+5 (5거래일) 기준 실현 여부 자동 추적</p>
+        <div id="perfStats" class="perf-stats hidden"></div>
+        <div id="perfSessions" class="perf-sessions"></div>
+        <div id="perfEmpty" class="empty-state">
+          <div class="empty-icon">📊</div>
+          <p>급등주 스크리너를 실행하면<br>성과 데이터가 쌓입니다</p>
+          <p class="sub">T+1·T+5 기준으로 실현 여부를<br>자동 추적해 승률을 개선합니다</p>
+        </div>
+      </div>
+
       <!-- 관심종목 탭 -->
       <div id="tab-watch" class="tab-pane hidden">
         <div class="wl-market-tabs">
@@ -151,6 +171,6 @@
   </div>
 
 </div>
-<script src="./app.js?v=12"></script>
+<script src="./app.js?v=13"></script>
 </body>
 </html>
