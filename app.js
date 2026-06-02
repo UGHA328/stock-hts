@@ -1888,15 +1888,34 @@ async function runAiDart() {
 
     if (d.error && !d.annual_report) { document.getElementById('aiModalContent').innerHTML = `<p style="color:var(--red)">${escHtml(d.raw || d.error)}</p>`; return; }
 
+    const lq = d.latest_quarter || {};
     const ar = d.annual_report || {};
     const disclosures = (d.recent_disclosures || []).map(dc =>
       `<div class="ai-news-item"><div class="ai-news-title">${escHtml(dc.title || '')}</div><div class="ai-news-meta">${escHtml(dc.date || '')}</div><div class="ai-news-summary">${escHtml(dc.summary || '')}</div></div>`
     ).join('');
+    const lqHighlights = (lq.highlights || []).map(k => `<li>${escHtml(k)}</li>`).join('');
     const keyPoints = (ar.key_points || []).map(k => `<li>${escHtml(k)}</li>`).join('');
     const risks = (d.major_risks || []).map(r => `<li style="color:var(--red)">${escHtml(r)}</li>`).join('');
 
+    function yoyBadge(v) {
+      if (!v) return '';
+      const pos = String(v).startsWith('+') || (!String(v).startsWith('-'));
+      return `<span style="color:${pos ? 'var(--green)' : 'var(--red)'};font-size:11px;margin-left:4px">${escHtml(v)}</span>`;
+    }
+
     document.getElementById('aiModalContent').innerHTML = `
-      <div class="ai-section-title">📊 ${escHtml(ar.year || '')} 사업보고서 핵심</div>
+      ${lq.period ? `
+      <div class="ai-section-title" style="color:var(--gold)">⭐ 최근 분기 실적 — ${escHtml(lq.period)}</div>
+      <div class="ai-metrics-row">
+        ${lq.revenue ? `<div class="ai-metric"><span>매출액</span><strong>${escHtml(lq.revenue)}</strong>${yoyBadge(lq.revenue_yoy)}</div>` : ''}
+        ${lq.operating_profit ? `<div class="ai-metric"><span>영업이익</span><strong>${escHtml(lq.operating_profit)}</strong>${yoyBadge(lq.op_yoy)}</div>` : ''}
+        ${lq.net_profit ? `<div class="ai-metric"><span>순이익</span><strong>${escHtml(lq.net_profit)}</strong></div>` : ''}
+        ${lq.eps ? `<div class="ai-metric"><span>EPS</span><strong>${escHtml(lq.eps)}</strong></div>` : ''}
+      </div>
+      ${lqHighlights ? `<ul class="ai-list">${lqHighlights}</ul>` : ''}
+      ${lq.guidance ? `<div class="ai-impact" style="border-left-color:var(--gold)">📢 가이던스: ${escHtml(lq.guidance)}</div>` : ''}
+      ` : ''}
+      <div class="ai-section-title" style="margin-top:16px">📊 ${escHtml(ar.year || '')} 연간 사업보고서</div>
       <div class="ai-metrics-row">
         ${ar.revenue ? `<div class="ai-metric"><span>매출액</span><strong>${escHtml(ar.revenue)}</strong></div>` : ''}
         ${ar.operating_profit ? `<div class="ai-metric"><span>영업이익</span><strong>${escHtml(ar.operating_profit)}</strong></div>` : ''}
