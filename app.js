@@ -1958,10 +1958,9 @@ async function runAiValuation() {
         ${cons.buy_count ? `<div class="ai-metric"><span>매수/중립/매도</span><strong>${escHtml(cons.buy_count+'/'+(cons.hold_count||0)+'/'+(cons.sell_count||0))}</strong></div>` : ''}
       </div>
       <div class="ai-section-title" style="margin-top:16px">📈 종합 점수 (0~100)</div>
-      ${scoreBar(sc.valuation_score, '밸류에이션 (높을수록 저평가)')}
-      ${scoreBar(sc.growth_score, '성장성')}
-      ${scoreBar(sc.risk_score, '리스크 (낮을수록 안전)', true)}
-      ${scoreBar(sc.buy_score, '매수 추천')}
+      ${scoreBar(sc.risk_score, '리스크 점수 (낮을수록 안전)', true)}
+      ${scoreBar(sc.growth_score, '수익성 점수')}
+      ${scoreBar(sc.buy_score, '매수의견 수치화')}
       <div class="ai-section-title" style="margin-top:16px">🔍 업종 비교 · 성장 전망</div>
       <div class="ai-impact">${escHtml(d.sector_comparison || '')} ${escHtml(d.growth_outlook || '')}</div>
       ${risks ? `<div class="ai-section-title" style="margin-top:12px">⚠ 주요 리스크</div><ul class="ai-list ai-risk-list">${risks}</ul>` : ''}
@@ -2005,20 +2004,25 @@ async function runFortune() {
       <div class="fortune-hexagram">
         <div class="fortune-symbol">${escHtml(hx.symbol || '☰')}</div>
         <div class="fortune-hx-name">${escHtml(hx.number || '')}. ${escHtml(hx.name_ko || '')} <span style="color:var(--muted)">${escHtml(hx.name_cn || '')}</span></div>
+        <div class="fortune-lucky-row">
+          ${d.lucky_number ? `<span class="fortune-lucky-badge">🔢 ${escHtml(d.lucky_number)}</span>` : ''}
+          ${d.lucky_color  ? `<span class="fortune-lucky-badge">🎨 ${escHtml(d.lucky_color)}</span>`  : ''}
+        </div>
       </div>
       <div class="fortune-card">
-        <div class="fortune-section-title">🌙 오늘의 운세</div>
-        <div class="fortune-text">${escHtml(d.fortune || '')}</div>
-        <div class="fortune-caution">⚡ ${escHtml(d.caution || '')}</div>
+        <div class="fortune-section-title">💰 오늘의 재물운</div>
+        <div class="fortune-text">${escHtml(d.wealth_fortune || '')}</div>
       </div>
       <div class="fortune-card">
-        <div class="fortune-section-title">📊 투자 방향</div>
-        <div class="fortune-text">${escHtml(d.investment_guidance || '')}</div>
-        ${luckyHtml ? `<div class="fortune-sectors">행운의 섹터: ${luckyHtml}</div>` : ''}
+        <div class="fortune-section-title">📈 오늘의 투자운</div>
+        <div class="fortune-text">${escHtml(d.investment_fortune || '')}</div>
+        <div class="fortune-text" style="color:var(--violet);font-size:12px">👉 ${escHtml(d.investment_guidance || '')}</div>
+        ${luckyHtml ? `<div class="fortune-sectors" style="margin-top:8px">행운의 섹터: ${luckyHtml}</div>` : ''}
       </div>
       <div class="fortune-card">
         <div class="fortune-section-title">🎯 주역 추천 종목</div>
         ${stocks}
+        <div class="fortune-caution" style="margin-top:8px">⚡ ${escHtml(d.caution || '')}</div>
       </div>
       <div class="ai-disclaimer">${escHtml(d.disclaimer || '본 내용은 오락 목적이며 투자 권유가 아닙니다.')}</div>`;
     result.classList.remove('hidden');
