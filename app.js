@@ -794,11 +794,12 @@ function switchRevSubTab(tab) {
 }
 
 /* ── 출처별 매도 조건 ── */
+// 출처별 표시 정보 (실제 매도 조건은 서버 _get_conditions()에서 스코어 기반으로 결정)
 const SOURCE_META = {
-  momentum: { label: '급등주', cls: 'src-momentum', targetPct: 8,  stopPct: 5,  holdDays: 3 },
-  value:    { label: '저PER',  cls: 'src-value',    targetPct: 15, stopPct: 10, holdDays: 30 },
-  reversal: { label: '반등',   cls: 'src-reversal', targetPct: 10, stopPct: 5,  holdDays: 7 },
-  stock:    { label: '종목탭', cls: 'src-stock',    targetPct: 8,  stopPct: 5,  holdDays: 5 },
+  momentum: { label: '급등주', cls: 'src-momentum', desc: '목표 +7~15% / 손절 -3~5% / 트레일링·RSI·MA5' },
+  value:    { label: '저PER',  cls: 'src-value',    desc: '목표 +20% / 손절 -10% / 트레일링 -15%' },
+  reversal: { label: '반등',   cls: 'src-reversal', desc: '목표 +15% / 손절 -10% / 트레일링 -10% / MA5' },
+  stock:    { label: '종목탭', cls: 'src-stock',    desc: '목표 +10% / 손절 -10% / 트레일링 -10% / MA5' },
 };
 
 async function addToWatchFromTab(ticker, name, market, source, price) {
@@ -808,23 +809,12 @@ async function addToWatchFromTab(ticker, name, market, source, price) {
     if (btn) { btn.textContent = '✅ 관심중'; setTimeout(() => { btn.textContent = '⭐ 관심'; }, 1500); }
     return;
   }
-  const cond = SOURCE_META[source] || SOURCE_META.stock;
   try {
+    // 조건은 서버(_get_conditions)에서 출처·스코어 기반으로 자동 결정
     await fetch(SERVER + '/purchase', {
       method: 'POST',
       headers: { ...HDR, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        ticker, name, market,
-        entry_price: price,
-        quantity: 1,
-        source,
-        score: 5,
-        signals: [],
-        rsi: 50,
-        target_pct: cond.targetPct,
-        stop_pct:   cond.stopPct,
-        hold_days:  cond.holdDays,
-      }),
+      body: JSON.stringify({ ticker, name, market, entry_price: price, quantity: 1, source, score: 5, signals: [], rsi: 50 }),
     });
   } catch (e) { console.warn('Flask 등록 실패:', e); }
   if (!watchlist[market]) watchlist[market] = [];
@@ -1716,9 +1706,7 @@ function renderWatchlist() {
           ? `${Number(item.addPrice).toLocaleString('ko-KR')}원`
           : `$${Number(item.addPrice).toFixed(2)}`)
       : null;
-    const cond = src
-      ? `목표 +${src.targetPct}% / 손절 -${src.stopPct}% / ${src.holdDays}일`
-      : null;
+    const cond = src ? src.desc : null;
 
     return `
     <div class="wl-card ${item.code === currentSymbol ? 'active' : ''}" data-code="${item.code}" data-name="${escHtml(item.name || item.code)}">
