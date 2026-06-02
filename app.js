@@ -59,6 +59,28 @@ const KR_STOCKS = [
   { code:'326030', name:'SK바이오팜' }, { code:'302440', name:'SK바이오사이언스' },
   { code:'145020', name:'휴젤' }, { code:'196170', name:'알테오젠' },
   { code:'005870', name:'휴니드테크놀러지스' }, { code:'000990', name:'DB하이텍' },
+  // ETF - 국내지수
+  { code:'069500', name:'KODEX 200' }, { code:'122630', name:'KODEX 레버리지' },
+  { code:'114800', name:'KODEX 인버스' }, { code:'252670', name:'KODEX 200선물인버스2X' },
+  { code:'233740', name:'KODEX 코스닥150레버리지' }, { code:'091160', name:'KODEX 반도체' },
+  { code:'091170', name:'KODEX 은행' }, { code:'102110', name:'TIGER 200' },
+  { code:'148020', name:'KBSTAR 200' }, { code:'229200', name:'KODEX 코스닥150' },
+  { code:'278540', name:'KODEX MSCI Korea TR' },
+  // ETF - 해외/테마
+  { code:'360750', name:'TIGER 미국S&P500' }, { code:'379800', name:'KODEX 미국S&P500' },
+  { code:'133690', name:'TIGER 미국나스닥100' }, { code:'379810', name:'KODEX 미국나스닥100' },
+  { code:'371460', name:'TIGER 차이나전기차SOLACTIVE' },
+  { code:'453950', name:'TIGER TSMC파운드리밸류체인' },
+  { code:'449690', name:'TIGER 한중반도체' }, { code:'329200', name:'TIGER 리츠부동산인프라' },
+  { code:'195930', name:'TIGER 해외상장리츠(합성H)' }, { code:'304660', name:'TIGER 차이나CSI300' },
+  { code:'428510', name:'TIGER 미국테크TOP10INDXX' }, { code:'459580', name:'KODEX 미국AI테크TOP10' },
+  // 리츠 (REITs)
+  { code:'088980', name:'맥쿼리인프라' }, { code:'330590', name:'롯데리츠' },
+  { code:'365550', name:'ESR켄달스퀘어리츠' }, { code:'395400', name:'SK리츠' },
+  { code:'350520', name:'이지스레지던스리츠' }, { code:'417310', name:'코람코더원리츠' },
+  { code:'448730', name:'삼성FN리츠' }, { code:'451800', name:'한화리츠' },
+  { code:'293940', name:'신한알파리츠' }, { code:'357120', name:'코람코라이프인프라리츠' },
+  { code:'404990', name:'신한서부티엔디리츠' }, { code:'432720', name:'디앤디플랫폼리츠' },
 ];
 
 /* ── 미국 스크리너 종목 영문명 ── */
