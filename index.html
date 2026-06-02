@@ -45,6 +45,10 @@
       <span class="nav-icon">📈</span>
       <span class="nav-label">성과</span>
     </button>
+    <button class="nav-btn" data-tab="fortune">
+      <span class="nav-icon">🔮</span>
+      <span class="nav-label">운세</span>
+    </button>
   </nav>
 
   <!-- 메인 영역 -->
@@ -86,6 +90,11 @@
             </div>
           </div>
           <button id="addWatchBtn" class="watch-add-btn">⭐ 관심종목 추가</button>
+          <div class="ai-btn-row">
+            <button class="ai-btn" id="btnNews">📰 뉴스요약</button>
+            <button class="ai-btn" id="btnDart">📋 전자공시</button>
+            <button class="ai-btn" id="btnValuation">💡 밸류에이션</button>
+          </div>
           <div class="metrics">
             <div class="metric-card"><div class="label">시가</div><div id="mOpen" class="value">-</div></div>
             <div class="metric-card"><div class="label">고가</div><div id="mHigh" class="value">-</div></div>
@@ -223,10 +232,62 @@
         <div id="watchlistPanel" class="watchlist-panel"></div>
       </div>
 
+      <!-- 운세 탭 -->
+      <div id="tab-fortune" class="tab-pane hidden">
+        <div class="fortune-header">
+          <h3 style="font-size:15px;font-weight:700">🔮 오늘의 운세 &amp; 추천 종목</h3>
+          <p class="sc-desc">주역(周易) 64괘 기반 · Gemini AI · 오락 목적</p>
+        </div>
+        <div class="fortune-form">
+          <div class="fortune-cal-toggle">
+            <label><input type="radio" name="calType" value="solar" checked> 양력</label>
+            <label><input type="radio" name="calType" value="lunar"> 음력</label>
+          </div>
+          <div class="fortune-inputs">
+            <input type="date" id="fortuneBirthDate" class="fortune-date-input" placeholder="생년월일">
+            <select id="fortuneBirthTime" class="fortune-time-select">
+              <option value="모름">생시 모름</option>
+              <option value="자시(子時 23:00~01:00)">자시 (23~01시)</option>
+              <option value="축시(丑時 01:00~03:00)">축시 (01~03시)</option>
+              <option value="인시(寅時 03:00~05:00)">인시 (03~05시)</option>
+              <option value="묘시(卯時 05:00~07:00)">묘시 (05~07시)</option>
+              <option value="진시(辰時 07:00~09:00)">진시 (07~09시)</option>
+              <option value="사시(巳時 09:00~11:00)">사시 (09~11시)</option>
+              <option value="오시(午時 11:00~13:00)">오시 (11~13시)</option>
+              <option value="미시(未時 13:00~15:00)">미시 (13~15시)</option>
+              <option value="신시(申時 15:00~17:00)">신시 (15~17시)</option>
+              <option value="유시(酉時 17:00~19:00)">유시 (17~19시)</option>
+              <option value="술시(戌時 19:00~21:00)">술시 (19~21시)</option>
+              <option value="해시(亥時 21:00~23:00)">해시 (21~23시)</option>
+            </select>
+          </div>
+          <button id="fortuneRunBtn" class="run-btn" style="background:var(--violet)">🔮 운세 보기</button>
+        </div>
+        <div id="fortuneLoading" class="sc-loading hidden">
+          <div class="spinner" style="border-top-color:var(--violet)"></div>
+          <p>주역 64괘 분석 중...<br><small>Gemini AI가 오늘의 괘를 뽑고 있습니다</small></p>
+        </div>
+        <div id="fortuneResult" class="hidden"></div>
+      </div>
+
     </main>
   </div>
 
 </div>
+
+<!-- AI 분석 모달 -->
+<div id="aiModal" class="modal-overlay hidden" onclick="closeAiModal()">
+  <div class="modal-box ai-modal-box" onclick="event.stopPropagation()">
+    <div class="ai-modal-header">
+      <div class="modal-title" id="aiModalTitle">분석 중...</div>
+      <button class="ai-modal-close" onclick="closeAiModal()">✕</button>
+    </div>
+    <div id="aiModalContent" class="ai-modal-content">
+      <div class="ai-loading"><div class="spinner"></div><p>Gemini AI 분석 중...<br><small>뉴스 검색 및 분석에 15~30초 소요됩니다</small></p></div>
+    </div>
+  </div>
+</div>
+
 <!-- 매수 등록 모달 -->
 <div id="buyModal" class="modal-overlay hidden" onclick="closeBuyModal()">
   <div class="modal-box" onclick="event.stopPropagation()">

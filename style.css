@@ -617,6 +617,107 @@ body {
   border: 1px solid rgba(248,81,73,.3); cursor: pointer; white-space: nowrap;
 }
 
+/* ── AI 분석 버튼 ── */
+.ai-btn-row { display: flex; gap: 6px; padding: 6px 0 2px; flex-wrap: wrap; }
+.ai-btn {
+  padding: 5px 12px; border-radius: 8px; font-size: 12px; font-weight: 700;
+  background: rgba(163,113,247,.1); color: var(--violet);
+  border: 1px solid rgba(163,113,247,.3); cursor: pointer; white-space: nowrap;
+  transition: background .15s;
+}
+.ai-btn:hover { background: rgba(163,113,247,.2); }
+
+/* ── AI 모달 ── */
+.ai-modal-box {
+  max-width: 620px; width: 94vw; max-height: 82vh;
+  display: flex; flex-direction: column;
+}
+.ai-modal-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding-bottom: 10px; border-bottom: 1px solid var(--border); margin-bottom: 12px;
+}
+.ai-modal-close {
+  background: none; border: none; color: var(--muted); font-size: 18px; cursor: pointer; padding: 4px 8px;
+}
+.ai-modal-content { overflow-y: auto; flex: 1; font-size: 13px; line-height: 1.6; }
+.ai-loading { text-align: center; padding: 40px 0; }
+.ai-loading p { color: var(--muted); margin-top: 12px; }
+.ai-section-title {
+  font-size: 12px; font-weight: 700; color: var(--violet); text-transform: uppercase;
+  letter-spacing: .5px; margin: 12px 0 6px;
+}
+.ai-news-item {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+  padding: 10px 12px; margin-bottom: 8px;
+}
+.ai-news-title { font-weight: 600; font-size: 13px; margin-bottom: 3px; }
+.ai-news-meta { font-size: 11px; color: var(--muted); margin-bottom: 4px; }
+.ai-news-summary { font-size: 12px; color: #c9d1d9; }
+.ai-impact {
+  background: var(--surface); border-left: 3px solid var(--violet);
+  padding: 10px 12px; border-radius: 0 8px 8px 0; font-size: 13px; color: #c9d1d9;
+}
+.ai-metrics-row { display: flex; gap: 10px; flex-wrap: wrap; margin: 8px 0; }
+.ai-metric {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+  padding: 8px 12px; flex: 1; min-width: 100px; text-align: center;
+}
+.ai-metric span { display: block; font-size: 10px; color: var(--muted); margin-bottom: 3px; }
+.ai-metric strong { font-size: 13px; }
+.ai-list { padding-left: 18px; margin: 6px 0; }
+.ai-list li { margin-bottom: 3px; font-size: 12px; }
+.ai-risk-list li { color: var(--red); }
+.ai-footer-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; font-size: 12px; align-items: center; }
+.ai-source { font-size: 11px; color: var(--muted); margin-top: 10px; text-align: right; }
+.ai-disclaimer {
+  font-size: 11px; color: var(--muted); margin-top: 12px; padding: 6px 10px;
+  background: rgba(248,171,36,.05); border: 1px solid rgba(248,171,36,.2); border-radius: 6px;
+}
+/* 점수 바 */
+.score-bar-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.score-bar-label { font-size: 11px; color: var(--muted); width: 160px; flex-shrink: 0; }
+.score-bar-wrap { flex: 1; background: var(--border); border-radius: 4px; height: 8px; overflow: hidden; }
+.score-bar-fill { height: 100%; border-radius: 4px; transition: width .6s ease; }
+.score-bar-val { font-size: 12px; font-weight: 700; width: 30px; text-align: right; }
+
+/* ── 운세 탭 ── */
+.fortune-header { padding: 4px 0 8px; }
+.fortune-form {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+  padding: 14px; margin-bottom: 14px; display: flex; flex-direction: column; gap: 10px;
+}
+.fortune-cal-toggle { display: flex; gap: 16px; }
+.fortune-cal-toggle label { font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 4px; }
+.fortune-inputs { display: flex; gap: 8px; }
+.fortune-date-input, .fortune-time-select {
+  flex: 1; padding: 8px 10px; background: var(--bg); border: 1px solid var(--border);
+  border-radius: 8px; color: var(--text); font-size: 13px;
+}
+.fortune-hexagram {
+  text-align: center; padding: 20px 0 14px; border-bottom: 1px solid var(--border); margin-bottom: 12px;
+}
+.fortune-symbol { font-size: 48px; line-height: 1; margin-bottom: 6px; }
+.fortune-hx-name { font-size: 16px; font-weight: 700; }
+.fortune-card {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+  padding: 14px; margin-bottom: 10px;
+}
+.fortune-section-title { font-size: 12px; font-weight: 700; color: var(--violet); margin-bottom: 8px; }
+.fortune-text { font-size: 13px; line-height: 1.7; color: #c9d1d9; margin-bottom: 8px; }
+.fortune-caution { font-size: 12px; color: var(--gold); padding: 6px 0; }
+.fortune-sectors { margin-top: 8px; font-size: 12px; color: var(--muted); }
+.fortune-sector {
+  display: inline-block; padding: 2px 8px; border-radius: 6px; margin: 2px;
+  background: rgba(163,113,247,.1); color: var(--violet); border: 1px solid rgba(163,113,247,.2); font-size: 11px;
+}
+.fortune-stock-card {
+  background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+  padding: 10px 12px; margin-bottom: 6px; cursor: pointer; transition: border-color .15s;
+}
+.fortune-stock-card:hover { border-color: var(--violet); }
+.fortune-stock-name { font-weight: 600; font-size: 13px; margin-bottom: 3px; }
+.fortune-stock-reason { font-size: 12px; color: var(--muted); }
+
 /* ── 성과 탭 ── */
 .perf-header {
   display: flex;

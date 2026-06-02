@@ -1827,6 +1827,214 @@ document.querySelectorAll('.wl-tab').forEach(btn => {
   });
 });
 
+/* ── AI 분석 (뉴스·전자공시·밸류에이션) ── */
+function openAiModal(title) {
+  document.getElementById('aiModalTitle').textContent = title;
+  document.getElementById('aiModalContent').innerHTML =
+    '<div class="ai-loading"><div class="spinner"></div><p>Gemini AI 분석 중...<br><small>검색 및 분석에 15~30초 소요됩니다</small></p></div>';
+  document.getElementById('aiModal').classList.remove('hidden');
+}
+function closeAiModal() { document.getElementById('aiModal').classList.add('hidden'); }
+
+function _sentimentBadge(s) {
+  const map = { positive: ['긍정적', '#3fb950'], negative: ['부정적', '#f85149'], neutral: ['중립', '#8b949e'] };
+  const [label, color] = map[s] || ['중립', '#8b949e'];
+  return `<span style="background:${color}22;color:${color};border:1px solid ${color}44;padding:1px 7px;border-radius:6px;font-size:10px;font-weight:700">${label}</span>`;
+}
+
+async function runAiNews() {
+  if (!currentSymbol) return;
+  const name = document.getElementById('stockName').textContent;
+  openAiModal('📰 뉴스요약 — ' + name);
+  try {
+    const d = await fetch(SERVER + '/ai/news', {
+      method: 'POST', headers: { ...HDR, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ symbol: currentSymbol, name, market: currentMarket }),
+    }).then(r => r.json());
+
+    if (d.error && !d.news) { document.getElementById('aiModalContent').innerHTML = `<p style="color:var(--red)">${escHtml(d.raw || d.error)}</p>`; return; }
+
+    const newsHtml = (d.news || []).map(n => `
+      <div class="ai-news-item">
+        <div class="ai-news-title">${escHtml(n.title || '')} ${_sentimentBadge(n.sentiment)}</div>
+        <div class="ai-news-meta">${escHtml(n.source || '')} · ${escHtml(n.date || '')}</div>
+        <div class="ai-news-summary">${escHtml(n.summary || '')}</div>
+      </div>`).join('');
+
+    document.getElementById('aiModalContent').innerHTML = `
+      <div class="ai-section-title">📋 주요 뉴스</div>
+      ${newsHtml}
+      <div class="ai-section-title" style="margin-top:16px">🔍 수익성 영향 분석</div>
+      <div class="ai-impact">${escHtml(d.impact_analysis || '')}</div>
+      <div class="ai-footer-row">
+        <span>종합 전망: ${_sentimentBadge(d.overall_sentiment)}</span>
+        ${d.key_risk ? `<span style="color:var(--red)">⚠ ${escHtml(d.key_risk)}</span>` : ''}
+        ${d.key_opportunity ? `<span style="color:var(--green)">✅ ${escHtml(d.key_opportunity)}</span>` : ''}
+      </div>`;
+  } catch (e) {
+    document.getElementById('aiModalContent').innerHTML = `<p style="color:var(--red)">오류: ${escHtml(e.message)}</p>`;
+  }
+}
+
+async function runAiDart() {
+  if (!currentSymbol) return;
+  const name = document.getElementById('stockName').textContent;
+  openAiModal('📋 전자공시요약 — ' + name);
+  try {
+    const d = await fetch(SERVER + '/ai/dart', {
+      method: 'POST', headers: { ...HDR, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ symbol: currentSymbol, name, market: currentMarket }),
+    }).then(r => r.json());
+
+    if (d.error && !d.annual_report) { document.getElementById('aiModalContent').innerHTML = `<p style="color:var(--red)">${escHtml(d.raw || d.error)}</p>`; return; }
+
+    const ar = d.annual_report || {};
+    const disclosures = (d.recent_disclosures || []).map(dc =>
+      `<div class="ai-news-item"><div class="ai-news-title">${escHtml(dc.title || '')}</div><div class="ai-news-meta">${escHtml(dc.date || '')}</div><div class="ai-news-summary">${escHtml(dc.summary || '')}</div></div>`
+    ).join('');
+    const keyPoints = (ar.key_points || []).map(k => `<li>${escHtml(k)}</li>`).join('');
+    const risks = (d.major_risks || []).map(r => `<li style="color:var(--red)">${escHtml(r)}</li>`).join('');
+
+    document.getElementById('aiModalContent').innerHTML = `
+      <div class="ai-section-title">📊 ${escHtml(ar.year || '')} 사업보고서 핵심</div>
+      <div class="ai-metrics-row">
+        ${ar.revenue ? `<div class="ai-metric"><span>매출액</span><strong>${escHtml(ar.revenue)}</strong></div>` : ''}
+        ${ar.operating_profit ? `<div class="ai-metric"><span>영업이익</span><strong>${escHtml(ar.operating_profit)}</strong></div>` : ''}
+        ${ar.net_profit ? `<div class="ai-metric"><span>당기순이익</span><strong>${escHtml(ar.net_profit)}</strong></div>` : ''}
+      </div>
+      ${keyPoints ? `<ul class="ai-list">${keyPoints}</ul>` : ''}
+      <div class="ai-section-title" style="margin-top:16px">📄 최근 공시</div>
+      ${disclosures}
+      <div class="ai-section-title" style="margin-top:16px">🔭 사업 전망</div>
+      <div class="ai-impact">${escHtml(d.business_outlook || '')}</div>
+      ${risks ? `<ul class="ai-list ai-risk-list">${risks}</ul>` : ''}
+      <div class="ai-source">출처: ${escHtml(d.source || '')}</div>`;
+  } catch (e) {
+    document.getElementById('aiModalContent').innerHTML = `<p style="color:var(--red)">오류: ${escHtml(e.message)}</p>`;
+  }
+}
+
+async function runAiValuation() {
+  if (!currentSymbol) return;
+  const name = document.getElementById('stockName').textContent;
+  openAiModal('💡 밸류에이션 분석 — ' + name);
+  const fundamentals = {
+    per:        document.getElementById('mPer')?.textContent,
+    fpe:        document.getElementById('mFpe')?.textContent,
+    pbr:        document.getElementById('mPbr')?.textContent,
+    eps:        document.getElementById('mEps')?.textContent,
+    roe:        document.getElementById('mRoe')?.textContent,
+    dividend:   document.getElementById('mDiv')?.textContent,
+    market_cap: document.getElementById('mMcap')?.textContent,
+  };
+  try {
+    const d = await fetch(SERVER + '/ai/valuation', {
+      method: 'POST', headers: { ...HDR, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ symbol: currentSymbol, name, market: currentMarket, fundamentals }),
+    }).then(r => r.json());
+
+    if (d.error && !d.scores) { document.getElementById('aiModalContent').innerHTML = `<p style="color:var(--red)">${escHtml(d.raw || d.error)}</p>`; return; }
+
+    const sc = d.scores || {};
+    function scoreBar(val, label, reverse = false) {
+      const n = parseInt(val) || 0;
+      const col = reverse
+        ? (n < 40 ? 'var(--green)' : n < 70 ? 'var(--gold)' : 'var(--red)')
+        : (n >= 70 ? 'var(--green)' : n >= 40 ? 'var(--gold)' : 'var(--red)');
+      return `<div class="score-bar-row">
+        <span class="score-bar-label">${label}</span>
+        <div class="score-bar-wrap"><div class="score-bar-fill" style="width:${n}%;background:${col}"></div></div>
+        <span class="score-bar-val" style="color:${col}">${n}</span>
+      </div>`;
+    }
+    const cons = d.consensus || {};
+    const risks = (d.risks || []).map(r => `<li style="color:var(--red)">${escHtml(r)}</li>`).join('');
+
+    document.getElementById('aiModalContent').innerHTML = `
+      <div class="ai-section-title">📊 애널리스트 컨센서스</div>
+      <div class="ai-metrics-row">
+        ${cons.target_price ? `<div class="ai-metric"><span>목표주가</span><strong>${escHtml(cons.target_price)}</strong></div>` : ''}
+        ${cons.upside ? `<div class="ai-metric"><span>상승여력</span><strong style="color:var(--green)">${escHtml(cons.upside)}</strong></div>` : ''}
+        ${cons.buy_count ? `<div class="ai-metric"><span>매수/중립/매도</span><strong>${escHtml(cons.buy_count+'/'+(cons.hold_count||0)+'/'+(cons.sell_count||0))}</strong></div>` : ''}
+      </div>
+      <div class="ai-section-title" style="margin-top:16px">📈 종합 점수 (0~100)</div>
+      ${scoreBar(sc.valuation_score, '밸류에이션 (높을수록 저평가)')}
+      ${scoreBar(sc.growth_score, '성장성')}
+      ${scoreBar(sc.risk_score, '리스크 (낮을수록 안전)', true)}
+      ${scoreBar(sc.buy_score, '매수 추천')}
+      <div class="ai-section-title" style="margin-top:16px">🔍 업종 비교 · 성장 전망</div>
+      <div class="ai-impact">${escHtml(d.sector_comparison || '')} ${escHtml(d.growth_outlook || '')}</div>
+      ${risks ? `<div class="ai-section-title" style="margin-top:12px">⚠ 주요 리스크</div><ul class="ai-list ai-risk-list">${risks}</ul>` : ''}
+      <div class="ai-section-title" style="margin-top:16px">📝 종합 의견</div>
+      <div class="ai-impact" style="font-style:italic">${escHtml(d.verdict || '')}</div>
+      <div class="ai-disclaimer">⚠ 본 분석은 참고용이며 투자 권유가 아닙니다.</div>`;
+  } catch (e) {
+    document.getElementById('aiModalContent').innerHTML = `<p style="color:var(--red)">오류: ${escHtml(e.message)}</p>`;
+  }
+}
+
+/* ── 운세 탭 ── */
+async function runFortune() {
+  const birthDate = document.getElementById('fortuneBirthDate').value;
+  if (!birthDate) { alert('생년월일을 입력하세요.'); return; }
+  const birthTime  = document.getElementById('fortuneBirthTime').value;
+  const calType    = document.querySelector('input[name="calType"]:checked')?.value || 'solar';
+  const load = document.getElementById('fortuneLoading');
+  const result = document.getElementById('fortuneResult');
+  load.classList.remove('hidden');
+  result.classList.add('hidden');
+  try {
+    const d = await fetch(SERVER + '/ai/fortune', {
+      method: 'POST', headers: { ...HDR, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ birth_date: birthDate, birth_time: birthTime, calendar_type: calType }),
+    }).then(r => r.json());
+
+    load.classList.add('hidden');
+    if (d.error) { result.innerHTML = `<p style="color:var(--red)">${escHtml(d.raw || d.error)}</p>`; result.classList.remove('hidden'); return; }
+
+    const hx = d.hexagram || {};
+    const stocks = (d.recommended_stocks || []).map(s => `
+      <div class="fortune-stock-card" onclick="currentMarket='${s.market}';switchTab('home');selectStock('${s.ticker}${s.market==='kr'?'.KS':''}','${escHtml(s.name)}')">
+        <div class="fortune-stock-name">${escHtml(s.name)} <span style="color:var(--muted);font-size:11px">${s.ticker}</span></div>
+        <div class="fortune-stock-reason">${escHtml(s.reason || '')}</div>
+      </div>`).join('');
+
+    const luckyHtml = (d.lucky_sectors || []).map(s => `<span class="fortune-sector">${escHtml(s)}</span>`).join('');
+
+    result.innerHTML = `
+      <div class="fortune-hexagram">
+        <div class="fortune-symbol">${escHtml(hx.symbol || '☰')}</div>
+        <div class="fortune-hx-name">${escHtml(hx.number || '')}. ${escHtml(hx.name_ko || '')} <span style="color:var(--muted)">${escHtml(hx.name_cn || '')}</span></div>
+      </div>
+      <div class="fortune-card">
+        <div class="fortune-section-title">🌙 오늘의 운세</div>
+        <div class="fortune-text">${escHtml(d.fortune || '')}</div>
+        <div class="fortune-caution">⚡ ${escHtml(d.caution || '')}</div>
+      </div>
+      <div class="fortune-card">
+        <div class="fortune-section-title">📊 투자 방향</div>
+        <div class="fortune-text">${escHtml(d.investment_guidance || '')}</div>
+        ${luckyHtml ? `<div class="fortune-sectors">행운의 섹터: ${luckyHtml}</div>` : ''}
+      </div>
+      <div class="fortune-card">
+        <div class="fortune-section-title">🎯 주역 추천 종목</div>
+        ${stocks}
+      </div>
+      <div class="ai-disclaimer">${escHtml(d.disclaimer || '본 내용은 오락 목적이며 투자 권유가 아닙니다.')}</div>`;
+    result.classList.remove('hidden');
+  } catch (e) {
+    load.classList.add('hidden');
+    result.innerHTML = `<p style="color:var(--red)">오류: ${escHtml(e.message)}</p>`;
+    result.classList.remove('hidden');
+  }
+}
+
+/* ── AI 버튼 이벤트 ── */
+document.getElementById('btnNews').addEventListener('click', runAiNews);
+document.getElementById('btnDart').addEventListener('click', runAiDart);
+document.getElementById('btnValuation').addEventListener('click', runAiValuation);
+document.getElementById('fortuneRunBtn').addEventListener('click', runFortune);
+
 /* ── 초기화 ── */
 loadWatchlistData();
 loadPurchases();
