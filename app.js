@@ -1407,7 +1407,7 @@ function renderScreenerResults(results) {
   list.classList.remove('hidden');
 }
 
-/* ── 저PER 스크리너 ── */
+/* ── 저PER 스크리너 — 서버 /api/per/<market> 사용 ── */
 async function runPerScreener(refresh = false) {
   const btn  = document.getElementById('perRunBtn');
   const load = document.getElementById('perLoading');
@@ -1426,36 +1426,18 @@ async function runPerScreener(refresh = false) {
   [list, sum, emp].forEach(el => el.classList.add('hidden'));
 
   try {
-    const stockList = perMarket === 'us' ? US_SCREEN_LIST : KR_SCREEN_LIST;
-    // 배치로 Flask /batch 호출 (20개씩)
-    const all = [];
-    for (let i = 0; i < stockList.length; i += 20) {
-      const chunk = stockList.slice(i, i + 20).join(',');
-      try {
-        const data = await apiFetch(`/batch?symbols=${encodeURIComponent(chunk)}`);
-        const items = data.quoteResponse?.result || [];
-        all.push(...items);
-      } catch {}
-      if (i + 20 < stockList.length) await new Promise(r => setTimeout(r, 200));
-    }
+    // 서버 측 스크리너 사용 (Kiwoom/Naver → yfinance 우선순위)
+    const qs  = refresh ? '?refresh=true' : '';
+    const data = await apiFetch(`/api/per/${perMarket}${qs}`);
+    const results = data.results || [];
 
-    const results = all
-      .filter(i => i.forwardPE && i.forwardPE > 0 && i.forwardPE < 50)
-      .sort((a, b) => a.forwardPE - b.forwardPE)
-      .slice(0, 50)
-      .map(i => ({
-        ticker:     i.symbol.replace(/\.(KS|KQ)$/, ''),
-        name:       i.shortName || i.symbol,
-        price:      i.regularMarketPrice || 0,
-        change_pct: parseFloat((i.regularMarketChangePercent || 0).toFixed(2)),
-        forward_pe: parseFloat(i.forwardPE.toFixed(1)),
-        sector:     i.sector || '',
-      }));
+    if (!results.length) { emp.classList.remove('hidden'); return; }
 
     localStorage.setItem(cacheKey, JSON.stringify({ ts: Date.now(), data: results }));
     renderPerResults(results);
   } catch (e) {
-    alert('오류: ' + e.message);
+    emp.classList.remove('hidden');
+    console.error('저PER 스크리너 오류:', e.message);
   } finally {
     btn.disabled = false; btn.textContent = '▶ 실행';
     load.classList.add('hidden');
