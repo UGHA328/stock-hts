@@ -482,8 +482,32 @@ body {
 }
 .wl-remove:active { color: var(--red); }
 .wl-empty { padding: 40px 0; text-align: center; color: var(--muted); }
+.wl-meta { display: flex; align-items: center; gap: 6px; margin-top: 4px; flex-wrap: wrap; }
+.wl-src-badge {
+  display: inline-block; padding: 1px 7px; border-radius: 6px;
+  font-size: 10px; font-weight: 700;
+}
+.src-momentum { background: rgba(248,171,36,.15); color: var(--gold); border: 1px solid rgba(248,171,36,.3); }
+.src-value    { background: rgba(63,185,80,.15);  color: var(--green); border: 1px solid rgba(63,185,80,.3); }
+.src-reversal { background: rgba(163,113,247,.15); color: var(--violet); border: 1px solid rgba(163,113,247,.3); }
+.src-stock    { background: rgba(88,166,255,.15); color: var(--accent); border: 1px solid rgba(88,166,255,.3); }
+.wl-add-price { font-size: 11px; color: var(--muted); }
+.wl-cond { font-size: 10px; color: var(--muted); margin-top: 3px; }
 
-/* ── 반전예상주 탭 ── */
+/* ── 관심 빠른 추가 버튼 ── */
+.wl-quick-btn {
+  padding: 4px 9px; border-radius: 8px; font-size: 11px; font-weight: 700;
+  background: rgba(88,166,255,.08); color: var(--accent);
+  border: 1px solid rgba(88,166,255,.25); cursor: pointer; white-space: nowrap;
+  transition: background .15s;
+}
+.wl-quick-btn:hover { background: rgba(88,166,255,.18); }
+.wl-quick-btn.wl-added {
+  background: rgba(63,185,80,.1); color: var(--green);
+  border-color: rgba(63,185,80,.3);
+}
+
+/* ── 반등 탭 ── */
 .rev-subtabs {
   display: flex; gap: 6px; padding: 4px 0 8px;
 }

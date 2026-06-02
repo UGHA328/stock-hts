@@ -536,10 +536,7 @@ function renderRevResults(results) {
         <span class="exit-sep">|</span>
         <span class="exit-days">${ex.holdDays}</span>
         <span style="flex:1"></span>
-        ${isOwned
-          ? `<button class="sell-btn" onclick="event.stopPropagation();sellStock('${item.ticker}')">매도 완료</button>`
-          : `<button class="buy-btn" onclick="event.stopPropagation();openRevBuyModal('${item.ticker}')">🛒 매수 등록</button>`
-        }
+        ${watchBtnHtml(item.ticker, item.name, revMarket, 'reversal', item.price)}
       </div>
     </div>`;
   }).join('');
@@ -767,6 +764,7 @@ function renderRevPerfTab(history) {
           </div>
         </div>
         ${stock.signals.length ? `<div class="perf-sigs">${stock.signals.map(s => `<span class="sig-tag" style="background:rgba(163,113,247,.1);color:var(--violet)">${escHtml(s)}</span>`).join('')}</div>` : ''}
+        <div style="margin-top:4px">${watchBtnHtml(stock.ticker, name, session.market, 'reversal', stock.entry_price)}</div>
       </div>`;
     }).join('');
 
@@ -793,6 +791,75 @@ function switchRevSubTab(tab) {
   if (tab === 'perf') {
     updateRevPerfPrices().then(hist => renderRevPerfTab(hist));
   }
+}
+
+/* ── 출처별 매도 조건 ── */
+const SOURCE_META = {
+  momentum: { label: '급등주', cls: 'src-momentum', targetPct: 8,  stopPct: 5,  holdDays: 3 },
+  value:    { label: '저PER',  cls: 'src-value',    targetPct: 15, stopPct: 10, holdDays: 30 },
+  reversal: { label: '반등',   cls: 'src-reversal', targetPct: 10, stopPct: 5,  holdDays: 7 },
+  stock:    { label: '종목탭', cls: 'src-stock',    targetPct: 8,  stopPct: 5,  holdDays: 5 },
+};
+
+async function addToWatchFromTab(ticker, name, market, source, price) {
+  const exists = watchlist[market]?.find(i => i.code === ticker);
+  if (exists) {
+    const btn = document.querySelector(`[data-wl-ticker="${ticker}"]`);
+    if (btn) { btn.textContent = '✅ 관심중'; setTimeout(() => { btn.textContent = '⭐ 관심'; }, 1500); }
+    return;
+  }
+  const cond = SOURCE_META[source] || SOURCE_META.stock;
+  try {
+    await fetch(SERVER + '/purchase', {
+      method: 'POST',
+      headers: { ...HDR, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ticker, name, market,
+        entry_price: price,
+        quantity: 1,
+        source,
+        score: 5,
+        signals: [],
+        rsi: 50,
+        target_pct: cond.targetPct,
+        stop_pct:   cond.stopPct,
+        hold_days:  cond.holdDays,
+      }),
+    });
+  } catch (e) { console.warn('Flask 등록 실패:', e); }
+  if (!watchlist[market]) watchlist[market] = [];
+  watchlist[market].push({
+    code: ticker, name,
+    source, addPrice: price,
+    addDate: new Date().toLocaleDateString('ko-KR'),
+  });
+  saveWatchlist();
+  const btn = document.querySelector(`[data-wl-ticker="${ticker}"]`);
+  if (btn) { btn.textContent = '✅ 관심중'; btn.classList.add('wl-added'); }
+  ownedMap[ticker] = { ticker, name };
+}
+
+async function removeFromWatch(code, market) {
+  watchlist[market] = (watchlist[market] || []).filter(i => i.code !== code);
+  saveWatchlist();
+  try { await fetch(SERVER + `/purchase/${code}`, { method: 'DELETE', headers: HDR }); } catch {}
+  delete ownedMap[code];
+  renderWatchlist();
+  // 화면에 보이는 버튼 업데이트
+  const btn = document.querySelector(`[data-wl-ticker="${code}"]`);
+  if (btn) { btn.textContent = '⭐ 관심'; btn.classList.remove('wl-added'); }
+}
+
+function isInWatch(ticker, market) {
+  return !!(watchlist[market] || []).find(i => i.code === ticker);
+}
+
+function watchBtnHtml(ticker, name, market, source, price) {
+  const inWatch = isInWatch(ticker, market);
+  return `<button class="wl-quick-btn${inWatch ? ' wl-added' : ''}" data-wl-ticker="${ticker}"
+    onclick="event.stopPropagation();addToWatchFromTab('${ticker}','${escHtml(name)}','${market}','${source}',${price})">
+    ${inWatch ? '✅ 관심중' : '⭐ 관심'}
+  </button>`;
 }
 
 /* ── 보유종목 관리 ── */
@@ -1088,6 +1155,7 @@ function renderPerfTab(history) {
         </div>
         ${fails.length ? `<div class="perf-fail">${fails.map(f => `<span class="fail-tag">${escHtml(f)}</span>`).join('')}</div>` : ''}
         ${stock.signals.length ? `<div class="perf-sigs">${stock.signals.map(s => `<span class="sig-tag">${escHtml(s)}</span>`).join('')}</div>` : ''}
+        <div style="margin-top:4px">${watchBtnHtml(stock.ticker, displayName, session.market, 'momentum', stock.entry_price)}</div>
       </div>`;
     }).join('');
 
@@ -1331,10 +1399,7 @@ function renderScreenerResults(results) {
         ${ex.rsiWarn ? '<span class="exit-warn">⚠ RSI 과열</span>' : ''}
         ${ex.ma5Exit ? '<span class="exit-note">MA5 이탈시 즉시 매도</span>' : ''}
         <span style="flex:1"></span>
-        ${isOwned
-          ? `<button class="sell-btn" onclick="event.stopPropagation();sellStock('${item.ticker}')">매도 완료</button>`
-          : `<button class="buy-btn" onclick="event.stopPropagation();openBuyModal('${item.ticker}')">🛒 매수 등록</button>`
-        }
+        ${watchBtnHtml(item.ticker, item.name, screenerMarket, 'momentum', item.price)}
       </div>
     </div>`;
   }).join('');
@@ -1440,6 +1505,7 @@ function renderPerResults(results) {
       <div class="per-right">
         <div class="per-price">${price}</div>
         <div class="per-chg ${chgCls}">${sign}${item.change_pct}%</div>
+        ${watchBtnHtml(item.ticker, item.name, perMarket, 'value', item.price)}
       </div>
     </div>`;
   }).join('');
@@ -1637,20 +1703,38 @@ function loadWatchlistData() {
 
 function renderWatchlist() {
   const panel = document.getElementById('watchlistPanel');
-  const items = watchlist[watchMarket];
+  const items = watchlist[watchMarket] || [];
   if (!items.length) {
-    panel.innerHTML = '<div class="wl-empty">관심종목이 없습니다.<br>종목 탭에서 ⭐ 버튼으로 추가하세요.</div>';
+    panel.innerHTML = '<div class="wl-empty">관심종목이 없습니다.<br>각 탭의 ⭐ 버튼으로 추가하세요.</div>';
     return;
   }
-  panel.innerHTML = items.map(item => `
-    <div class="wl-card ${item.code === currentSymbol ? 'active' : ''}" data-code="${item.code}" data-name="${escHtml(item.name)}">
+
+  panel.innerHTML = items.map(item => {
+    const src = SOURCE_META[item.source];
+    const priceStr = item.addPrice
+      ? (watchMarket === 'kr'
+          ? `${Number(item.addPrice).toLocaleString('ko-KR')}원`
+          : `$${Number(item.addPrice).toFixed(2)}`)
+      : null;
+    const cond = src
+      ? `목표 +${src.targetPct}% / 손절 -${src.stopPct}% / ${src.holdDays}일`
+      : null;
+
+    return `
+    <div class="wl-card ${item.code === currentSymbol ? 'active' : ''}" data-code="${item.code}" data-name="${escHtml(item.name || item.code)}">
       <div class="wl-info">
         <div class="wl-name">${escHtml(item.name || item.code)}</div>
-        <div class="wl-code">${item.code}</div>
+        <div class="wl-code">${item.code}${item.addDate ? ' · ' + item.addDate : ''}</div>
+        ${src || priceStr ? `<div class="wl-meta">
+          ${src ? `<span class="wl-src-badge ${src.cls}">${src.label}</span>` : ''}
+          ${priceStr ? `<span class="wl-add-price">진입 ${priceStr}</span>` : ''}
+        </div>` : ''}
+        ${cond ? `<div class="wl-cond">${cond}</div>` : ''}
       </div>
-      <button class="wl-remove" data-code="${item.code}">×</button>
-    </div>
-  `).join('');
+      <button class="wl-remove" data-code="${item.code}" data-market="${watchMarket}" title="관심 해제">×</button>
+    </div>`;
+  }).join('');
+
   panel.querySelectorAll('.wl-card').forEach(card => {
     card.addEventListener('click', e => {
       if (e.target.classList.contains('wl-remove')) return;
@@ -1662,11 +1746,7 @@ function renderWatchlist() {
     });
   });
   panel.querySelectorAll('.wl-remove').forEach(btn => {
-    btn.addEventListener('click', () => {
-      watchlist[watchMarket] = watchlist[watchMarket].filter(i => i.code !== btn.dataset.code);
-      saveWatchlist();
-      renderWatchlist();
-    });
+    btn.addEventListener('click', () => removeFromWatch(btn.dataset.code, btn.dataset.market));
   });
 }
 
