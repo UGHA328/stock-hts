@@ -28,6 +28,10 @@
       <span class="nav-icon">💰</span>
       <span class="nav-label">저PER</span>
     </button>
+    <button class="nav-btn" data-tab="div">
+      <span class="nav-icon">💵</span>
+      <span class="nav-label">배당</span>
+    </button>
     <button class="nav-btn" data-tab="watch">
       <span class="nav-icon">⭐</span>
       <span class="nav-label">관심</span>
@@ -221,6 +225,28 @@
             <p class="sub">T+5 기준으로 실현 여부 추적·<br>신호 가중치를 스스로 개선합니다</p>
           </div>
         </div>
+      </div>
+
+      <!-- 배당 탭 -->
+      <div id="tab-div" class="tab-pane hidden">
+        <div class="sc-controls">
+          <div class="sc-market-tabs">
+            <button class="div-tab active" data-m="us">🇺🇸 미국</button>
+            <button class="div-tab" data-m="kr">🇰🇷 한국</button>
+          </div>
+          <div class="sc-btns">
+            <button id="divRunBtn" class="run-btn" style="background:var(--green)">▶ 실행</button>
+            <button id="divRefreshBtn" class="icon-btn">↺</button>
+          </div>
+        </div>
+        <p class="sc-desc">현재 주가 대비 배당수익률 상위 20종목 (yfinance 기준)</p>
+        <div id="divLoading" class="sc-loading hidden">
+          <div class="spinner" style="border-top-color:var(--green)"></div>
+          <p>고배당주 수집 중...<br><small>약 30~60초 소요됩니다</small></p>
+        </div>
+        <div id="divSummary" class="sc-summary hidden"></div>
+        <div id="divList" class="sc-list hidden"></div>
+        <div id="divEmpty" class="empty-msg hidden">데이터를 가져올 수 없습니다. 다시 시도해주세요.</div>
       </div>
 
       <!-- 관심종목 탭 -->

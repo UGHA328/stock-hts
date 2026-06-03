@@ -1494,6 +1494,82 @@ function renderPerResults(results) {
   list.classList.remove('hidden');
 }
 
+/* ── 배당 스크리너 ── */
+let divMarket = 'us';
+
+async function runDivScreener(refresh = false) {
+  const btn  = document.getElementById('divRunBtn');
+  const load = document.getElementById('divLoading');
+  const list = document.getElementById('divList');
+  const sum  = document.getElementById('divSummary');
+  const emp  = document.getElementById('divEmpty');
+  const qs   = refresh ? '?refresh=true' : '';
+
+  btn.disabled = true; btn.textContent = '⏳ 수집 중...';
+  load.classList.remove('hidden');
+  [list, sum, emp].forEach(el => el.classList.add('hidden'));
+
+  try {
+    const data = await apiFetch(`/api/div/${divMarket}${qs}`);
+    const results = data.results || [];
+    if (!results.length) { emp.classList.remove('hidden'); return; }
+
+    const now = new Date().toLocaleTimeString('ko-KR');
+    const avg = (results.reduce((a, r) => a + r.div_yield, 0) / results.length).toFixed(2);
+    sum.innerHTML = `<strong>${results.length}개</strong> 고배당 종목 &nbsp;|&nbsp;
+      <span style="color:var(--green)">평균 배당수익률 ${avg}%</span> &nbsp;|&nbsp; ${now} (3시간 캐시)`;
+    sum.classList.remove('hidden');
+
+    list.innerHTML = results.map((item, idx) => {
+      const isMrkt  = divMarket;
+      const isKr    = isMrkt === 'kr';
+      const priceStr = isKr
+        ? (item.price ? Math.round(item.price).toLocaleString('ko-KR') + '원' : '-')
+        : (item.price ? '$' + item.price.toLocaleString('en-US', {minimumFractionDigits:2}) : '-');
+      const divRate  = item.div_rate
+        ? (isKr ? Math.round(item.div_rate).toLocaleString('ko-KR') + '원' : '$' + item.div_rate.toFixed(2))
+        : null;
+      const yieldCls = item.div_yield >= 8 ? 'div-yield-high'
+                     : item.div_yield >= 5 ? 'div-yield-mid' : 'div-yield-low';
+      const chgCls   = item.change_pct >= 0 ? 'up' : 'down';
+      const chgSign  = item.change_pct >= 0 ? '+' : '';
+
+      return `<div class="div-card" data-code="${item.ticker}${isKr ? '.KS' : ''}" data-name="${escHtml(item.name)}">
+        <div class="div-rank">${idx + 1}</div>
+        <div class="div-info">
+          <div class="div-name">${escHtml(item.name)}</div>
+          <div class="div-sub">${item.ticker} · ${escHtml(item.sector)}</div>
+          ${divRate ? `<div class="div-rate-label">연 배당금 ${divRate}${item.payout_ratio ? ` · 배당성향 ${item.payout_ratio}%` : ''}</div>` : ''}
+        </div>
+        <div class="div-right">
+          <div class="${yieldCls}">${item.div_yield.toFixed(2)}%</div>
+          <div class="div-price">${priceStr}</div>
+          <div class="${chgCls}" style="font-size:11px">${chgSign}${item.change_pct}%</div>
+          ${watchBtnHtml(item.ticker + (isKr ? '.KS' : ''), item.name, isMrkt, 'value', item.price || 0)}
+        </div>
+      </div>`;
+    }).join('');
+
+    list.querySelectorAll('.div-card').forEach(card => {
+      card.addEventListener('click', e => {
+        if (e.target.closest('button')) return;
+        currentMarket = divMarket;
+        document.querySelectorAll('.tab-btn').forEach(b =>
+          b.classList.toggle('active', b.dataset.market === divMarket));
+        switchTab('home');
+        selectStock(card.dataset.code, card.dataset.name);
+      });
+    });
+    list.classList.remove('hidden');
+  } catch (e) {
+    emp.classList.remove('hidden');
+    console.error('배당 스크리너 오류:', e.message);
+  } finally {
+    btn.disabled = false; btn.textContent = '▶ 실행';
+    load.classList.add('hidden');
+  }
+}
+
 /* ── 탭 전환 ── */
 function switchTab(tabId) {
   document.querySelectorAll('.tab-pane').forEach(p =>
@@ -1817,6 +1893,17 @@ document.getElementById('revRunBtn').addEventListener('click', () => runRevScree
 document.getElementById('revRefreshBtn').addEventListener('click', () => runRevScreener(true));
 document.getElementById('revPerfUpdateBtn').addEventListener('click', () =>
   updateRevPerfPrices().then(hist => renderRevPerfTab(hist)));
+
+document.querySelectorAll('.div-tab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.div-tab').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    divMarket = btn.dataset.m;
+    ['divList','divSummary','divEmpty'].forEach(id => document.getElementById(id).classList.add('hidden'));
+  });
+});
+document.getElementById('divRunBtn').addEventListener('click', () => runDivScreener(false));
+document.getElementById('divRefreshBtn').addEventListener('click', () => runDivScreener(true));
 
 document.querySelectorAll('.wl-tab').forEach(btn => {
   btn.addEventListener('click', () => {

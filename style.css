@@ -443,6 +443,34 @@ body {
 .per-price { font-weight: 700; font-size: 14px; }
 .per-chg   { font-size: 12px; margin-top: 2px; }
 
+/* ── 배당 탭 ── */
+.div-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 12px; padding: 12px 14px; margin-bottom: 8px;
+  display: flex; align-items: center; gap: 10px; cursor: pointer;
+  transition: border-color .15s;
+}
+.div-card:hover { border-color: var(--green); }
+.div-rank {
+  width: 26px; text-align: center; font-size: 12px; font-weight: 700;
+  color: var(--muted); flex-shrink: 0;
+}
+.div-info { flex: 1; min-width: 0; }
+.div-name { font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.div-sub  { font-size: 11px; color: var(--muted); margin-top: 2px; }
+.div-rate-label { font-size: 11px; color: var(--muted); margin-top: 3px; }
+.div-right { text-align: right; flex-shrink: 0; display: flex; flex-direction: column; align-items: flex-end; gap: 3px; }
+.div-price { font-size: 13px; font-weight: 600; }
+.div-yield-high { font-size: 18px; font-weight: 800; color: var(--green); }
+.div-yield-mid  { font-size: 16px; font-weight: 700; color: var(--gold); }
+.div-yield-low  { font-size: 15px; font-weight: 700; color: var(--accent); }
+.div-tab {
+  padding: 7px 14px; border: 1px solid var(--border);
+  background: transparent; color: var(--muted);
+  border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600;
+}
+.div-tab.active { background: var(--green); color: #fff; border-color: var(--green); }
+
 /* ── 관심종목 탭 ── */
 .wl-market-tabs { display: flex; gap: 6px; padding: 4px 0 8px; }
 .wl-tab {
@@ -717,6 +745,11 @@ body {
 .fortune-stock-card:hover { border-color: var(--violet); }
 .fortune-stock-name { font-weight: 600; font-size: 13px; margin-bottom: 3px; }
 .fortune-stock-reason { font-size: 12px; color: var(--muted); }
+.fortune-lucky-row { display: flex; justify-content: center; gap: 8px; margin-top: 8px; }
+.fortune-lucky-badge {
+  padding: 2px 10px; border-radius: 8px; font-size: 12px; font-weight: 700;
+  background: rgba(163,113,247,.15); color: var(--violet); border: 1px solid rgba(163,113,247,.3);
+}
 
 /* ── 성과 탭 ── */
 .perf-header {
