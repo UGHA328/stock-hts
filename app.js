@@ -2159,10 +2159,52 @@ async function runFortune() {
   }
 }
 
+/* ── 기업보고서 (NotebookLM) ── */
+async function runNotebookLM() {
+  if (!currentSymbol || currentMarket !== 'kr') {
+    alert('한국 종목을 선택해야 기업보고서 기능을 사용할 수 있습니다.');
+    return;
+  }
+  const name = document.getElementById('stockName').textContent;
+  const btn  = document.getElementById('btnNotebookLM');
+  const orig = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = '⏳ 보고서 로딩 중...';
+
+  try {
+    const res = await fetch(SERVER + '/ai/notebooklm', {
+      method: 'POST',
+      headers: { ...HDR, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ symbol: currentSymbol, name }),
+    });
+    const d = await res.json();
+
+    if (d.success) {
+      alert(`✅ ${d.message}\n\nNotebookLM에서 "${name} 최신 보고서를 요약해줘"라고 질문하세요.`);
+    } else {
+      const msg = d.error || '알 수 없는 오류';
+      if (d.dart_url) {
+        if (confirm(`자동 추가 실패: ${msg}\n\n수동으로 추가하시겠습니까?\n(NotebookLM에서 URL을 직접 붙여넣기)`)) {
+          navigator.clipboard.writeText(d.dart_url).catch(() => {});
+          window.open('https://notebooklm.google.com/notebook/bfc3f589-787d-4f6e-a508-a833514366ed', '_blank');
+        }
+      } else {
+        alert('오류: ' + msg);
+      }
+    }
+  } catch (e) {
+    alert('오류: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = orig;
+  }
+}
+
 /* ── AI 버튼 이벤트 ── */
 document.getElementById('btnNews').addEventListener('click', runAiNews);
 document.getElementById('btnDart').addEventListener('click', runAiDart);
 document.getElementById('btnValuation').addEventListener('click', runAiValuation);
+document.getElementById('btnNotebookLM').addEventListener('click', runNotebookLM);
 document.getElementById('fortuneRunBtn').addEventListener('click', runFortune);
 
 /* ── 초기화 ── */
