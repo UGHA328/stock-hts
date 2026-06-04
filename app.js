@@ -1673,6 +1673,17 @@ async function selectStock(code, name) {
     updateStockHeader(q);
     updateCharts(c);
     document.getElementById('addWatchBtn').textContent = '⭐ 관심종목 추가';
+    // 목표 주가 섹션 표시 + 초기화
+    const ts = document.getElementById('targetSection');
+    if (ts) {
+      ts.style.display = '';
+      _sectorData = null;
+      document.getElementById('targetContent').innerHTML =
+        '<div style="color:var(--muted);font-size:12px">↺ 업종 분석 버튼을 클릭하세요</div>';
+      document.getElementById('customPerResult').innerHTML = '';
+      const inp = document.getElementById('customPerInput');
+      if (inp) inp.value = '';
+    }
   } catch (e) {
     document.getElementById('stockPrice').textContent = '오류';
     console.error(e);
@@ -2278,6 +2289,108 @@ async function startNlmSetup() {
     const content = document.getElementById('aiModalContent');
     if (content) content.innerHTML += `<div class="ai-impact" style="border-left-color:var(--green);margin-top:10px">✅ ${escHtml(d.message)}</div>`;
   } catch(e) { alert('오류: ' + e.message); }
+}
+
+/* ── 목표 주가 산출 ── */
+let _sectorData = null;  // 마지막 업종 분석 결과
+
+async function loadSectorPer() {
+  if (!currentSymbol) return;
+  const btn = document.getElementById('targetRefreshBtn');
+  const content = document.getElementById('targetContent');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ 분석 중...'; }
+  content.innerHTML = '<div style="color:var(--muted);font-size:12px">업종 시총 상위 종목 PER 수집 중... (30~60초 소요)</div>';
+
+  try {
+    const res = await fetch(SERVER + '/sector-per', {
+      method: 'POST', headers: { ...HDR, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ symbol: currentSymbol, market: currentMarket }),
+    });
+    const d = await res.json();
+    if (d.error) { content.innerHTML = `<p style="color:var(--red)">${escHtml(d.error)}</p>`; return; }
+
+    _sectorData = d;
+    const isKr = currentMarket === 'kr';
+    const fmt = (v) => v != null ? (isKr ? `${Math.round(v).toLocaleString('ko-KR')}원` : `$${v.toLocaleString('en-US',{minimumFractionDigits:2})}`) : '-';
+    const fmtEps = (v) => v != null ? (isKr ? `${v.toLocaleString('ko-KR')}원` : `$${v.toFixed(2)}`) : '-';
+
+    const peersHtml = (d.peers || []).map((p,i) =>
+      `<span style="font-size:10px;color:var(--muted)">${i+1}.${escHtml(p.name)} <strong>${p.per}x</strong></span>`
+    ).join(' &nbsp; ');
+
+    content.innerHTML = `
+      <div class="target-grid">
+        <div class="target-item">
+          <div class="target-label">업종명</div>
+          <div class="target-val" style="font-size:11px">${escHtml(d.sector||'-')}</div>
+        </div>
+        <div class="target-item">
+          <div class="target-label">업종 평균 PER</div>
+          <div class="target-val" style="color:var(--gold)">${d.avg_per != null ? d.avg_per+'x' : '-'}</div>
+        </div>
+        <div class="target-item">
+          <div class="target-label">TTM EPS</div>
+          <div class="target-val">${fmtEps(d.eps)}</div>
+        </div>
+        <div class="target-item">
+          <div class="target-label">선행 EPS</div>
+          <div class="target-val">${fmtEps(d.fwd_eps)}</div>
+        </div>
+        <div class="target-item highlight">
+          <div class="target-label">업종PER 기준 목표가 <small>(TTM EPS)</small></div>
+          <div class="target-val" style="color:var(--green);font-size:16px">${fmt(d.target_by_sector)}</div>
+        </div>
+        <div class="target-item highlight">
+          <div class="target-label">업종PER 기준 목표가 <small>(선행 EPS)</small></div>
+          <div class="target-val" style="color:var(--accent);font-size:16px">${fmt(d.fwd_target_by_sector)}</div>
+        </div>
+      </div>
+      <div style="margin-top:8px;font-size:11px;color:var(--muted)">
+        📊 비교 기업 (시총 상위): ${peersHtml}
+      </div>`;
+  } catch(e) {
+    content.innerHTML = `<p style="color:var(--red)">오류: ${escHtml(e.message)}</p>`;
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '↺ 업종 분석'; }
+  }
+}
+
+function calcCustomPer() {
+  const perInput = parseFloat(document.getElementById('customPerInput')?.value);
+  const result   = document.getElementById('customPerResult');
+  if (!result) return;
+  if (!perInput || perInput <= 0) { result.innerHTML = '<span style="color:var(--red)">PER을 입력하세요</span>'; return; }
+
+  const isKr = currentMarket === 'kr';
+  const fmt = (v) => v != null ? (isKr ? `${Math.round(v).toLocaleString('ko-KR')}원` : `$${v.toFixed(2)}`) : '-';
+
+  // 저장된 EPS 사용 (또는 화면에서 읽기)
+  let eps = _sectorData?.eps;
+  let fwdEps = _sectorData?.fwd_eps;
+
+  // 화면에 표시된 EPS 값 폴백
+  if (!eps) {
+    const epsEl = document.getElementById('mEps');
+    if (epsEl) {
+      const parsed = parseFloat(epsEl.textContent.replace(/[^0-9.\-]/g,''));
+      if (!isNaN(parsed)) eps = parsed;
+    }
+  }
+
+  const ttmTarget = eps ? Math.round(eps * perInput) : null;
+  const fwdTarget = fwdEps ? Math.round(fwdEps * perInput) : null;
+
+  result.innerHTML = `
+    <div class="target-grid" style="margin-top:6px">
+      <div class="target-item highlight">
+        <div class="target-label">PER ${perInput}x 목표가 <small>(TTM EPS)</small></div>
+        <div class="target-val" style="color:var(--green);font-size:16px">${fmt(ttmTarget)}</div>
+      </div>
+      ${fwdTarget ? `<div class="target-item highlight">
+        <div class="target-label">PER ${perInput}x 목표가 <small>(선행 EPS)</small></div>
+        <div class="target-val" style="color:var(--accent);font-size:16px">${fmt(fwdTarget)}</div>
+      </div>` : ''}
+    </div>`;
 }
 
 /* ── 차트분석 ── */

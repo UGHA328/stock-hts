@@ -117,6 +117,24 @@
             <div class="metric-card"><div class="label">ROE</div><div id="mRoe" class="value">-</div></div>
             <div class="metric-card"><div class="label">업종 PER</div><div id="mSectorPer" class="value">-</div></div>
           </div>
+          <!-- 목표 주가 산출 -->
+          <div class="target-section" id="targetSection" style="display:none">
+            <div class="target-header">
+              <span class="target-title">🎯 목표 주가 산출</span>
+              <button class="target-refresh-btn" id="targetRefreshBtn" onclick="loadSectorPer()">↺ 업종 분석</button>
+            </div>
+            <div id="targetContent">
+              <div style="color:var(--muted);font-size:12px;padding:10px 0">↺ 업종 분석 버튼을 클릭하세요</div>
+            </div>
+            <!-- 사용자 직접 PER 입력 -->
+            <div class="custom-per-row">
+              <span style="font-size:12px;color:var(--muted)">선행 PER 직접 입력</span>
+              <input type="number" id="customPerInput" class="custom-per-input" placeholder="PER 입력" min="1" max="200" step="0.1">
+              <button class="custom-per-btn" onclick="calcCustomPer()">계산</button>
+            </div>
+            <div id="customPerResult" style="font-size:13px;padding:4px 0"></div>
+          </div>
+
           <div class="chart-wrap"><canvas id="priceChart"></canvas></div>
           <div class="chart-wrap small"><canvas id="volumeChart"></canvas></div>
         </div>
