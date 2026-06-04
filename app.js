@@ -2192,79 +2192,90 @@ async function runNotebookLM() {
     const clean      = currentSymbol.replace('.KS','').replace('.KQ','');
     const dartDocUrl = `${ngrokUrl}/dart-doc/${clean}`;
 
-    // 2. DART 보고서 미리 캐시
+    // 2. DART URL 서버 저장 + 보고서 미리 캐시
+    fetch(SERVER + '/nlm/store-url', {
+      method: 'POST', headers: { ...HDR, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: dartDocUrl, company: name }),
+    }).catch(() => {});
     fetch(dartDocUrl, { headers: { 'ngrok-skip-browser-warning': '1' } }).catch(() => {});
     try { await navigator.clipboard.writeText(dartDocUrl); } catch {}
 
-    // 3. NotebookLM 탭 열기
-    window.open('https://notebooklm.google.com/notebook/bfc3f589-787d-4f6e-a508-a833514366ed', '_blank');
+    // 3. NotebookLM 탭 열기 (이미 열려있으면 포커스)
+    const nlmTab = window.open('https://notebooklm.google.com/notebook/bfc3f589-787d-4f6e-a508-a833514366ed', 'notebooklm');
 
-    // 4. 셋업 미완료 → 셋업 안내
-    if (!statusData.setup_complete) {
-      openAiModal('📒 노트북LM 셋업 필요');
-      document.getElementById('aiModalContent').innerHTML = `
-        <div style="text-align:center;padding:12px 0">
-          <div style="font-size:40px">⚙️</div>
-          <div style="font-size:15px;font-weight:700;margin:8px 0">처음 한 번만 셋업이 필요합니다</div>
-        </div>
-        <div class="ai-impact" style="border-left-color:var(--gold)">
-          셋업하면 이후부터 버튼 클릭만으로 <strong>NotebookLM에 소스가 자동으로 추가</strong>됩니다.
-        </div>
-        <div class="ai-section-title" style="margin-top:14px">셋업 방법</div>
-        <ol style="padding-left:18px;font-size:13px;line-height:2.2">
-          <li>NotebookLM 탭으로 이동 (이미 열렸습니다)</li>
-          <li>아래 <strong>"셋업 시작"</strong> 버튼 클릭</li>
-          <li>서버 콘솔에 지시가 나타남 → 마우스를 각 버튼 위에 올리고 3초 기다리기<br>
-            <small style="color:var(--muted)">①소스추가(+) → ②웹사이트 → ③URL입력창</small></li>
-          <li>완료 후 다시 노트북LM 버튼 클릭</li>
-        </ol>
-        <button onclick="startNlmSetup()" class="run-btn" style="width:100%;margin-top:12px;background:var(--violet)">⚙️ 셋업 시작</button>
-        <div class="ai-disclaimer" style="margin-top:10px">※ 지금은 수동으로: NotebookLM에서 + 소스추가 → 웹사이트 → Ctrl+V</div>`;
-      return;
+    // 4. 북마클릿 방식 안내 모달
+    openAiModal(`📒 노트북LM — ${name}`);
+
+    // 북마클릿 코드 생성 (localhost:5000 직접 접근)
+    const bmCode = `javascript:(async function(){
+  try {
+    const r = await fetch('http://localhost:5000/nlm/last-url');
+    const d = await r.json();
+    const url = d.url;
+    if (!url) { alert('앱에서 먼저 노트북LM 버튼을 클릭하세요.'); return; }
+    const btns = [...document.querySelectorAll('button, [role=button]')];
+    const addBtn = btns.find(b => /소스\\s*추가|add\\s*source/i.test(b.textContent));
+    if (!addBtn) { alert('소스추가 버튼을 찾지 못했습니다. 직접 추가해주세요.\\nURL: ' + url); return; }
+    addBtn.click(); await new Promise(r => setTimeout(r, 1200));
+    const webBtn = [...document.querySelectorAll('button,[role=menuitem],[role=option],li')].find(b => /웹사이트|website/i.test(b.textContent));
+    if (webBtn) { webBtn.click(); await new Promise(r => setTimeout(r, 800)); }
+    const inp = document.querySelector('input[type=url],input[type=text],textarea');
+    if (inp) {
+      inp.focus(); inp.select();
+      document.execCommand('insertText', false, url);
+      await new Promise(r => setTimeout(r, 400));
+      inp.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true}));
+      await new Promise(r => setTimeout(r, 400));
+      inp.dispatchEvent(new KeyboardEvent('keyup',{key:'Enter',bubbles:true}));
     }
+    alert('✅ 소스 추가 완료!\\n${escHtml(name)} 보고서가 추가됐습니다.');
+  } catch(e) { alert('오류: ' + e.message); }
+})();`;
 
-    // 5. 자동화 실행
-    const srcCount = statusData.source_count || 0;
-    const countdown = 4;
-    openAiModal(`📒 노트북LM 자동 추가 — ${name}`);
     document.getElementById('aiModalContent').innerHTML = `
-      <div style="text-align:center;padding:16px 0">
-        <div id="nlmCountdown" style="font-size:56px;font-weight:900;color:var(--violet)">${countdown}</div>
-        <div style="font-size:14px;color:var(--muted);margin-top:4px">초 안에 NotebookLM 탭으로 이동하세요</div>
+      <div style="text-align:center;padding:10px 0 14px">
+        <div style="font-size:28px">📒</div>
+        <div style="font-size:14px;font-weight:700;margin:6px 0">NotebookLM이 열렸습니다</div>
+        <div style="font-size:12px;color:var(--muted)">DART URL이 클립보드에 복사됐습니다</div>
       </div>
-      <div class="ai-impact" style="border-left-color:var(--violet)">
-        <strong>${escHtml(name)}</strong> 전년도+최근 보고서를 NotebookLM에 자동 추가합니다.<br>
-        <small>현재 소스: ${srcCount}/${statusData.max_sources || 10}개 ${srcCount >= 9 ? '⚠ 곧 오래된 소스 자동 삭제' : ''}</small>
-      </div>`;
 
-    // 카운트다운 UI
-    let left = countdown - 1;
-    const timer = setInterval(() => {
-      const el = document.getElementById('nlmCountdown');
-      if (el && left > 0) { el.textContent = left--; }
-      else { clearInterval(timer); if (el) el.textContent = '🚀'; }
-    }, 1000);
+      <!-- 처음: 북마클릿 설치 안내 -->
+      <details style="margin-bottom:12px">
+        <summary style="cursor:pointer;font-size:13px;font-weight:700;color:var(--violet);padding:6px 0">
+          ⚡ 자동화 설정 (처음 한 번만) — 클릭하여 열기
+        </summary>
+        <div style="margin-top:10px;font-size:12px;line-height:1.8">
+          <div class="ai-section-title">북마클릿 설치 방법</div>
+          <ol style="padding-left:16px;margin:6px 0">
+            <li>아래 버튼을 <strong>북마크바로 드래그</strong>하거나 클릭 후 즐겨찾기 저장</li>
+            <li>NotebookLM 탭에서 저장한 북마클릿 클릭</li>
+            <li>자동으로 소스 추가 완료 🎉</li>
+          </ol>
+          <a href="${bmCode.replace(/"/g,"'")}"
+             style="display:block;padding:10px;background:rgba(163,113,247,.15);border:1px solid var(--violet);border-radius:8px;color:var(--violet);font-weight:700;text-align:center;text-decoration:none;margin-top:8px;cursor:grab"
+             onclick="event.preventDefault();alert('이 링크를 북마크바로 드래그하거나,\\n우클릭 → 즐겨찾기에 추가하세요.')">
+            📎 NLM 소스추가 (북마클릿 드래그)
+          </a>
+          <div style="font-size:11px;color:var(--muted);margin-top:6px">설치 후: NotebookLM 탭에서 북마클릿 클릭 → 자동 소스 추가</div>
+        </div>
+      </details>
 
-    // 서버에 자동화 요청 (백그라운드)
-    const autoRes = await fetch(SERVER + '/nlm/auto-add', {
-      method: 'POST', headers: { ...HDR, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ symbol: currentSymbol, name, dart_url: dartDocUrl, countdown }),
-    });
-    const autoData = await autoRes.json();
-    clearInterval(timer);
-
-    if (autoData.need_setup) {
-      document.getElementById('nlmCountdown').textContent = '⚙️';
-      document.getElementById('aiModalContent').innerHTML += `<p style="color:var(--gold)">셋업 필요: 위 셋업 버튼을 눌러주세요.</p>`;
-    } else {
-      setTimeout(() => {
-        const content = document.getElementById('aiModalContent');
-        if (content) content.innerHTML += `
-          <div class="ai-impact" style="border-left-color:var(--green);margin-top:10px">
-            ✅ 자동 추가 완료! NotebookLM에서 <strong>"${escHtml(name)} 보고서를 요약해줘"</strong> 라고 질문하세요.
-          </div>`;
-      }, (countdown + 3) * 1000);
-    }
+      <!-- 지금 바로: 수동 안내 -->
+      <div class="ai-impact" style="border-left-color:var(--accent);margin-bottom:10px">
+        <strong>URL (클립보드에 복사됨):</strong><br>
+        <code style="font-size:10px;word-break:break-all">${escHtml(dartDocUrl)}</code>
+      </div>
+      <ol style="padding-left:18px;font-size:13px;line-height:2.2;margin-bottom:10px">
+        <li>NotebookLM 탭으로 이동</li>
+        <li><strong>+ 소스 추가 → 웹사이트</strong></li>
+        <li><kbd>Ctrl+V</kbd> 붙여넣기 → 삽입</li>
+        <li><strong>"${escHtml(name)} 보고서를 요약해줘"</strong> 질문</li>
+      </ol>
+      <div style="display:flex;gap:8px">
+        <button onclick="navigator.clipboard.writeText('${escHtml(dartDocUrl)}')" class="ai-btn">📋 URL 복사</button>
+        <button onclick="window.open('https://notebooklm.google.com/notebook/bfc3f589-787d-4f6e-a508-a833514366ed','notebooklm')" class="ai-btn" style="color:#4285f4">📒 NLM 탭</button>
+      </div>
+      <div class="ai-disclaimer" style="margin-top:10px">※ 전년도 + 최근 정기보고서 2개 포함</div>`;
 
   } catch (e) {
     closeAiModal();
