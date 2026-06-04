@@ -2175,59 +2175,116 @@ async function runNotebookLM() {
   btn.textContent = '⏳ DART 보고서 준비 중...';
 
   try {
-    // 1. ngrok URL 가져오기
-    const pubRes = await fetch(SERVER + '/api/public-url', { headers: HDR });
-    const pubData = await pubRes.json();
-    const ngrokUrl = pubData.url;
+    // 1. ngrok URL + 셋업 상태 확인
+    const [pubRes, statusRes] = await Promise.all([
+      fetch(SERVER + '/api/public-url', { headers: HDR }),
+      fetch(SERVER + '/nlm/status', { headers: HDR }),
+    ]);
+    const pubData    = await pubRes.json();
+    const statusData = await statusRes.json();
+    const ngrokUrl   = pubData.url;
 
     if (!ngrokUrl) {
       alert('ngrok이 실행되지 않았습니다. start_ngrok.bat을 실행 후 다시 시도하세요.');
       return;
     }
 
-    const clean = currentSymbol.replace('.KS','').replace('.KQ','');
+    const clean      = currentSymbol.replace('.KS','').replace('.KQ','');
     const dartDocUrl = `${ngrokUrl}/dart-doc/${clean}`;
 
-    // 2. 보고서를 서버에서 미리 캐시 (백그라운드 preload)
+    // 2. DART 보고서 미리 캐시
     fetch(dartDocUrl, { headers: { 'ngrok-skip-browser-warning': '1' } }).catch(() => {});
-
-    // 3. 클립보드에 URL 복사
     try { await navigator.clipboard.writeText(dartDocUrl); } catch {}
 
-    // 4. NotebookLM 탭 열기
+    // 3. NotebookLM 탭 열기
     window.open('https://notebooklm.google.com/notebook/bfc3f589-787d-4f6e-a508-a833514366ed', '_blank');
 
-    // 5. 안내 메시지
-    openAiModal(`📒 노트북LM — ${name}`);
+    // 4. 셋업 미완료 → 셋업 안내
+    if (!statusData.setup_complete) {
+      openAiModal('📒 노트북LM 셋업 필요');
+      document.getElementById('aiModalContent').innerHTML = `
+        <div style="text-align:center;padding:12px 0">
+          <div style="font-size:40px">⚙️</div>
+          <div style="font-size:15px;font-weight:700;margin:8px 0">처음 한 번만 셋업이 필요합니다</div>
+        </div>
+        <div class="ai-impact" style="border-left-color:var(--gold)">
+          셋업하면 이후부터 버튼 클릭만으로 <strong>NotebookLM에 소스가 자동으로 추가</strong>됩니다.
+        </div>
+        <div class="ai-section-title" style="margin-top:14px">셋업 방법</div>
+        <ol style="padding-left:18px;font-size:13px;line-height:2.2">
+          <li>NotebookLM 탭으로 이동 (이미 열렸습니다)</li>
+          <li>아래 <strong>"셋업 시작"</strong> 버튼 클릭</li>
+          <li>서버 콘솔에 지시가 나타남 → 마우스를 각 버튼 위에 올리고 3초 기다리기<br>
+            <small style="color:var(--muted)">①소스추가(+) → ②웹사이트 → ③URL입력창</small></li>
+          <li>완료 후 다시 노트북LM 버튼 클릭</li>
+        </ol>
+        <button onclick="startNlmSetup()" class="run-btn" style="width:100%;margin-top:12px;background:var(--violet)">⚙️ 셋업 시작</button>
+        <div class="ai-disclaimer" style="margin-top:10px">※ 지금은 수동으로: NotebookLM에서 + 소스추가 → 웹사이트 → Ctrl+V</div>`;
+      return;
+    }
+
+    // 5. 자동화 실행
+    const srcCount = statusData.source_count || 0;
+    const countdown = 4;
+    openAiModal(`📒 노트북LM 자동 추가 — ${name}`);
     document.getElementById('aiModalContent').innerHTML = `
-      <div style="text-align:center;padding:10px 0 16px">
-        <div style="font-size:32px;margin-bottom:8px">✅</div>
-        <div style="font-size:15px;font-weight:700;margin-bottom:6px">NotebookLM이 열렸습니다</div>
-        <div style="font-size:12px;color:var(--muted)">DART 보고서 URL이 클립보드에 복사됐습니다</div>
+      <div style="text-align:center;padding:16px 0">
+        <div id="nlmCountdown" style="font-size:56px;font-weight:900;color:var(--violet)">${countdown}</div>
+        <div style="font-size:14px;color:var(--muted);margin-top:4px">초 안에 NotebookLM 탭으로 이동하세요</div>
       </div>
-      <div class="ai-impact" style="border-left-color:var(--accent);margin:12px 0">
-        <strong>URL:</strong> <code style="font-size:11px;word-break:break-all">${escHtml(dartDocUrl)}</code>
-      </div>
-      <div class="ai-section-title">NotebookLM에서 할 일</div>
-      <ol style="padding-left:18px;font-size:13px;line-height:2">
-        <li>NotebookLM 탭으로 이동</li>
-        <li><strong>+ 소스 추가</strong> 클릭</li>
-        <li><strong>웹사이트</strong> 선택</li>
-        <li><kbd>Ctrl+V</kbd> 로 URL 붙여넣기</li>
-        <li>삽입 후 <strong>"${escHtml(name)} 최신 보고서를 요약해줘"</strong> 질문</li>
-      </ol>
-      <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">
-        <button onclick="navigator.clipboard.writeText('${escHtml(dartDocUrl)}')" class="ai-btn">📋 URL 다시 복사</button>
-        <button onclick="window.open('https://notebooklm.google.com/notebook/bfc3f589-787d-4f6e-a508-a833514366ed','_blank')" class="ai-btn" style="color:#4285f4">📒 NotebookLM 열기</button>
-      </div>
-      <div class="ai-disclaimer">※ 전년도 + 최근 정기보고서 2개가 포함된 URL입니다.</div>`;
+      <div class="ai-impact" style="border-left-color:var(--violet)">
+        <strong>${escHtml(name)}</strong> 전년도+최근 보고서를 NotebookLM에 자동 추가합니다.<br>
+        <small>현재 소스: ${srcCount}/${statusData.max_sources || 10}개 ${srcCount >= 9 ? '⚠ 곧 오래된 소스 자동 삭제' : ''}</small>
+      </div>`;
+
+    // 카운트다운 UI
+    let left = countdown - 1;
+    const timer = setInterval(() => {
+      const el = document.getElementById('nlmCountdown');
+      if (el && left > 0) { el.textContent = left--; }
+      else { clearInterval(timer); if (el) el.textContent = '🚀'; }
+    }, 1000);
+
+    // 서버에 자동화 요청 (백그라운드)
+    const autoRes = await fetch(SERVER + '/nlm/auto-add', {
+      method: 'POST', headers: { ...HDR, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ symbol: currentSymbol, name, dart_url: dartDocUrl, countdown }),
+    });
+    const autoData = await autoRes.json();
+    clearInterval(timer);
+
+    if (autoData.need_setup) {
+      document.getElementById('nlmCountdown').textContent = '⚙️';
+      document.getElementById('aiModalContent').innerHTML += `<p style="color:var(--gold)">셋업 필요: 위 셋업 버튼을 눌러주세요.</p>`;
+    } else {
+      setTimeout(() => {
+        const content = document.getElementById('aiModalContent');
+        if (content) content.innerHTML += `
+          <div class="ai-impact" style="border-left-color:var(--green);margin-top:10px">
+            ✅ 자동 추가 완료! NotebookLM에서 <strong>"${escHtml(name)} 보고서를 요약해줘"</strong> 라고 질문하세요.
+          </div>`;
+      }, (countdown + 3) * 1000);
+    }
 
   } catch (e) {
+    closeAiModal();
     alert('오류: ' + e.message);
   } finally {
     btn.disabled = false;
     btn.textContent = orig;
   }
+}
+
+/* ── NotebookLM 셋업 ── */
+async function startNlmSetup() {
+  const btn = document.querySelector('#aiModalContent button');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ 셋업 진행 중...'; }
+  try {
+    const r = await fetch(SERVER + '/nlm/setup', { method: 'POST', headers: HDR });
+    const d = await r.json();
+    const content = document.getElementById('aiModalContent');
+    if (content) content.innerHTML += `<div class="ai-impact" style="border-left-color:var(--green);margin-top:10px">✅ ${escHtml(d.message)}</div>`;
+  } catch(e) { alert('오류: ' + e.message); }
 }
 
 /* ── 차트분석 ── */
