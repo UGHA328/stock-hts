@@ -2172,17 +2172,74 @@ async function runNotebookLM() {
   const btn  = document.getElementById('btnNotebookLM');
   const orig = btn.textContent;
   btn.disabled = true;
-  btn.textContent = '⏳ DART 보고서 준비 중...';
+  btn.textContent = '⏳ 보고서 URL 준비 중...';
 
   try {
-    // 1. ngrok URL + 클릭 위치 기록 상태 확인
-    const [pubRes, statusRes] = await Promise.all([
-      fetch(SERVER + '/api/public-url', { headers: HDR }),
-      fetch(SERVER + '/nlm/click-status', { headers: HDR }),
-    ]);
-    const pubData    = await pubRes.json();
-    const statusData = await statusRes.json();
-    const ngrokUrl   = pubData.url;
+    // ngrok URL 가져오기
+    const pubRes   = await fetch(SERVER + '/api/public-url', { headers: HDR });
+    const ngrokUrl = (await pubRes.json()).url;
+    if (!ngrokUrl) { alert('ngrok이 실행되지 않았습니다.'); return; }
+
+    const clean      = currentSymbol.replace('.KS','').replace('.KQ','');
+    const dartDocUrl = `${ngrokUrl}/dart-doc/${clean}`;
+
+    // URL 클립보드 복사 + 서버 저장 + 보고서 미리 캐시
+    try { await navigator.clipboard.writeText(dartDocUrl); } catch {}
+    fetch(SERVER + '/nlm/store-url', {
+      method: 'POST', headers: { ...HDR, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: dartDocUrl, company: name }),
+    }).catch(() => {});
+    fetch(dartDocUrl, { headers: { 'ngrok-skip-browser-warning': '1' } }).catch(() => {});
+
+    // NotebookLM 소스추가 창 열린 상태로 오픈
+    const NLM = 'https://notebooklm.google.com/notebook/bfc3f589-787d-4f6e-a508-a833514366ed';
+    window.open(NLM + '?addSource=true', 'notebooklm');
+
+    // 안내 모달
+    openAiModal(`📒 노트북LM — ${name}`);
+    document.getElementById('aiModalContent').innerHTML = `
+      <div style="text-align:center;padding:12px 0 10px">
+        <div style="font-size:32px">📋</div>
+        <div style="font-size:15px;font-weight:700;margin:6px 0">URL이 클립보드에 복사됐습니다</div>
+        <div style="font-size:12px;color:var(--muted)">NotebookLM 소스 추가 창이 자동으로 열렸습니다</div>
+      </div>
+
+      <div class="ai-impact" style="border-left-color:var(--green);margin:10px 0">
+        <code style="font-size:10px;word-break:break-all;color:var(--muted)">${escHtml(dartDocUrl)}</code>
+      </div>
+
+      <div class="ai-section-title">다음 순서</div>
+      <ol style="padding-left:18px;font-size:13px;line-height:2.4;margin-bottom:12px">
+        <li>NotebookLM 탭으로 이동</li>
+        <li><strong>웹사이트</strong> 버튼 클릭</li>
+        <li><kbd style="background:var(--surface);border:1px solid var(--border);padding:1px 6px;border-radius:4px">Ctrl+V</kbd> 붙여넣기
+          <span style="color:var(--muted);font-size:11px">(폰은 길게 눌러 붙여넣기)</span>
+        </li>
+        <li><strong>삽입</strong> → <strong>"${escHtml(name)} 보고서를 요약해줘"</strong> 질문</li>
+      </ol>
+
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button onclick="navigator.clipboard.writeText('${escHtml(dartDocUrl)}').then(()=>this.textContent='✅ 복사됨').catch(()=>{})" class="ai-btn">📋 URL 다시 복사</button>
+        <button onclick="window.open('${NLM}?addSource=true','notebooklm')" class="ai-btn" style="color:#4285f4">📒 NotebookLM</button>
+      </div>
+      <div class="ai-disclaimer" style="margin-top:10px">※ 전년도 + 최근 정기보고서 2개 포함</div>`;
+
+  } catch (e) {
+    alert('오류: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = orig;
+  }
+}
+
+/* ── NotebookLM 구버전 코드 제거됨 ── */
+function _runNotebookLM_OLD_STUB() {
+
+  try {
+    // 1. ngrok URL 가져오기
+    const pubRes  = await fetch(SERVER + '/api/public-url', { headers: HDR });
+    const pubData = await pubRes.json();
+    const ngrokUrl = pubData.url;
 
     if (!ngrokUrl) {
       alert('ngrok이 실행되지 않았습니다. start_ngrok.bat을 실행 후 다시 시도하세요.');
@@ -2192,19 +2249,21 @@ async function runNotebookLM() {
     const clean      = currentSymbol.replace('.KS','').replace('.KQ','');
     const dartDocUrl = `${ngrokUrl}/dart-doc/${clean}`;
 
-    // 2. DART URL 서버 저장 + 보고서 미리 캐시
+    // 2. URL 클립보드 복사 + 서버 저장 + 보고서 미리 캐시
+    try { await navigator.clipboard.writeText(dartDocUrl); } catch {}
     fetch(SERVER + '/nlm/store-url', {
       method: 'POST', headers: { ...HDR, 'Content-Type': 'application/json' },
       body: JSON.stringify({ url: dartDocUrl, company: name }),
     }).catch(() => {});
     fetch(dartDocUrl, { headers: { 'ngrok-skip-browser-warning': '1' } }).catch(() => {});
-    try { await navigator.clipboard.writeText(dartDocUrl); } catch {}
 
-    // 3. NotebookLM 탭 열기
-    window.open('https://notebooklm.google.com/notebook/bfc3f589-787d-4f6e-a508-a833514366ed', 'notebooklm');
+    // 3. NotebookLM을 소스추가 창이 열린 상태로 오픈
+    const NLM_BASE = 'https://notebooklm.google.com/notebook/bfc3f589-787d-4f6e-a508-a833514366ed';
+    window.open(NLM_BASE + '?addSource=true', 'notebooklm');
 
-    // 4. 위치 미기록 → 처음 한 번 안내
-    if (!statusData.setup_complete) {
+    // 4. 안내 모달
+    if (false) {  // 더 이상 사용 안 함
+    if (!statusData) {
       openAiModal('📒 노트북LM — 처음 설정 (1회)');
       document.getElementById('aiModalContent').innerHTML = `
         <div style="text-align:center;padding:14px 0">
