@@ -1973,51 +1973,68 @@ async function runAiDart() {
       body: JSON.stringify({ symbol: currentSymbol, name, market: currentMarket }),
     }).then(r => r.json());
 
-    if (d.error && !d.annual_report) { document.getElementById('aiModalContent').innerHTML = `<p style="color:var(--red)">${escHtml(d.raw || d.error)}</p>`; return; }
+    if (d.error && !d.annual_report && !d.latest_quarter) {
+      document.getElementById('aiModalContent').innerHTML = `<p style="color:var(--red)">${escHtml(d.raw || d.error)}</p>`; return;
+    }
 
+    const isDart = d._source === 'DART';  // 실제 DART vs AI 추정
     const lq = d.latest_quarter || {};
     const ar = d.annual_report || {};
-    const disclosures = (d.recent_disclosures || []).map(dc =>
-      `<div class="ai-news-item"><div class="ai-news-title">${escHtml(dc.title || '')}</div><div class="ai-news-meta">${escHtml(dc.date || '')}</div><div class="ai-news-summary">${escHtml(dc.summary || '')}</div></div>`
-    ).join('');
-    const lqHighlights = (lq.highlights || []).map(k => `<li>${escHtml(k)}</li>`).join('');
-    const keyPoints = (ar.key_points || []).map(k => `<li>${escHtml(k)}</li>`).join('');
-    const risks = (d.major_risks || []).map(r => `<li style="color:var(--red)">${escHtml(r)}</li>`).join('');
 
-    function yoyBadge(v) {
-      if (!v) return '';
-      const pos = String(v).startsWith('+') || (!String(v).startsWith('-'));
-      return `<span style="color:${pos ? 'var(--green)' : 'var(--red)'};font-size:11px;margin-left:4px">${escHtml(v)}</span>`;
+    // DART 실제 공시 링크 포함
+    const disclosures = (d.recent_disclosures || []).map(dc => {
+      const link = dc.url
+        ? `<a href="${escHtml(dc.url)}" target="_blank" style="color:var(--accent);font-size:11px">원문 보기 →</a>`
+        : '';
+      return `<div class="ai-news-item">
+        <div class="ai-news-title">${escHtml(dc.title || '')} ${link}</div>
+        <div class="ai-news-meta">${escHtml(dc.date || '')}${dc.summary ? ' · ' + escHtml(dc.summary) : ''}</div>
+      </div>`;
+    }).join('');
+
+    // AI 추정값인 경우 기존 필드 처리
+    const lqHighlights = (lq.highlights || []).map(k => `<li>${escHtml(k)}</li>`).join('');
+    const keyPoints    = (ar.key_points  || []).map(k => `<li>${escHtml(k)}</li>`).join('');
+    const risks        = (d.major_risks  || []).map(r => `<li style="color:var(--red)">${escHtml(r)}</li>`).join('');
+
+    const sourceLabel = isDart
+      ? `<span style="color:var(--green);font-weight:700">✅ DART 실제 공시 데이터</span>`
+      : `<span style="color:var(--gold)">⚠ AI 추정값 (DART 미연동 종목)</span>`;
+
+    // 전년비 배지
+    function prevBadge(cur, prev) {
+      if (!prev || prev === '-') return '';
+      return `<div style="font-size:10px;color:var(--muted)">직전: ${escHtml(prev)}</div>`;
     }
 
     document.getElementById('aiModalContent').innerHTML = `
+      <div style="margin-bottom:10px">${sourceLabel}</div>
       ${lq.period ? `
-      <div class="ai-section-title" style="color:var(--gold)">⭐ 최근 분기 실적 — ${escHtml(lq.period)}</div>
+      <div class="ai-section-title" style="color:var(--gold)">⭐ 최근 분기 실적 — ${escHtml(lq.period)}${lq.fs_source ? ` <span style="font-size:10px;color:var(--muted)">(${escHtml(lq.fs_source)})</span>` : ''}</div>
       <div class="ai-metrics-row">
-        ${lq.revenue ? `<div class="ai-metric"><span>매출액</span><strong>${escHtml(lq.revenue)}</strong>${yoyBadge(lq.revenue_yoy)}</div>` : ''}
-        ${lq.operating_profit ? `<div class="ai-metric"><span>영업이익</span><strong>${escHtml(lq.operating_profit)}</strong>${yoyBadge(lq.op_yoy)}</div>` : ''}
+        ${lq.revenue ? `<div class="ai-metric"><span>매출액</span><strong>${escHtml(lq.revenue)}</strong>${prevBadge(lq.revenue, lq.revenue_prev||lq.revenue_yoy)}</div>` : ''}
+        ${lq.operating_profit ? `<div class="ai-metric"><span>영업이익</span><strong>${escHtml(lq.operating_profit)}</strong>${prevBadge(lq.operating_profit, lq.op_prev||lq.op_yoy)}</div>` : ''}
         ${lq.net_profit ? `<div class="ai-metric"><span>순이익</span><strong>${escHtml(lq.net_profit)}</strong></div>` : ''}
-        ${lq.eps ? `<div class="ai-metric"><span>EPS</span><strong>${escHtml(lq.eps)}</strong></div>` : ''}
+        ${lq.op_margin ? `<div class="ai-metric"><span>영업이익률</span><strong>${escHtml(lq.op_margin)}</strong></div>` : ''}
       </div>
       ${lqHighlights ? `<ul class="ai-list">${lqHighlights}</ul>` : ''}
       ${lq.guidance ? `<div class="ai-impact" style="border-left-color:var(--gold)">📢 가이던스: ${escHtml(lq.guidance)}</div>` : ''}
-      ` : ''}
-      <div class="ai-section-title" style="margin-top:16px">📊 ${escHtml(ar.year || '')} 연간 사업보고서</div>
+      ` : '<div style="color:var(--muted);font-size:13px;margin:8px 0">최근 분기보고서 없음</div>'}
+      <div class="ai-section-title" style="margin-top:16px">📊 ${escHtml(ar.year || '')} 연간 사업보고서${ar.fs_source ? ` <span style="font-size:10px;color:var(--muted)">(${escHtml(ar.fs_source)})</span>` : ''}</div>
       <div class="ai-metrics-row">
         ${ar.revenue ? `<div class="ai-metric"><span>매출액</span><strong>${escHtml(ar.revenue)}</strong></div>` : ''}
         ${ar.operating_profit ? `<div class="ai-metric"><span>영업이익</span><strong>${escHtml(ar.operating_profit)}</strong></div>` : ''}
         ${ar.net_profit ? `<div class="ai-metric"><span>당기순이익</span><strong>${escHtml(ar.net_profit)}</strong></div>` : ''}
+        ${ar.op_margin ? `<div class="ai-metric"><span>영업이익률</span><strong>${escHtml(ar.op_margin)}</strong></div>` : ''}
       </div>
       ${keyPoints ? `<ul class="ai-list">${keyPoints}</ul>` : ''}
-      <div class="ai-section-title" style="margin-top:16px">📄 최근 공시</div>
-      ${disclosures}
-      <div class="ai-section-title" style="margin-top:16px">🔭 사업 전망</div>
-      <div class="ai-impact">${escHtml(d.business_outlook || '')}</div>
+      ${d.business_outlook ? `<div class="ai-section-title" style="margin-top:16px">🔭 사업 전망</div><div class="ai-impact">${escHtml(d.business_outlook)}</div>` : ''}
       ${risks ? `<ul class="ai-list ai-risk-list">${risks}</ul>` : ''}
+      ${disclosures ? `<div class="ai-section-title" style="margin-top:16px">📄 최근 공시${isDart ? ' (실제)' : ''}</div>${disclosures}` : ''}
       <div class="ai-source">출처: ${escHtml(d.source || '')}</div>
-      <div class="ai-disclaimer" style="border-color:rgba(248,81,73,.3);background:rgba(248,81,73,.05)">
+      ${!isDart ? `<div class="ai-disclaimer" style="border-color:rgba(248,81,73,.3);background:rgba(248,81,73,.05)">
         ⚠ AI 추정값입니다. 실제 DART 공시와 다를 수 있습니다. 투자 전 반드시 <a href="https://dart.fss.or.kr" target="_blank" style="color:var(--accent)">DART 원문</a>을 확인하세요.
-      </div>`;
+      </div>` : ''}`;
   } catch (e) {
     document.getElementById('aiModalContent').innerHTML = `<p style="color:var(--red)">오류: ${escHtml(e.message)}</p>`;
   }
