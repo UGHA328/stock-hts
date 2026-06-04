@@ -2183,8 +2183,15 @@ async function runNotebookLM() {
       alert(`✅ ${d.message}\n\nNotebookLM에서 "${name} 최신 보고서를 요약해줘"라고 질문하세요.`);
     } else {
       const msg = d.error || '알 수 없는 오류';
-      if (d.dart_url) {
-        if (confirm(`자동 추가 실패: ${msg}\n\n수동으로 추가하시겠습니까?\n(NotebookLM에서 URL을 직접 붙여넣기)`)) {
+      if (msg.includes('corp_code') || msg.includes('미등재') || msg.includes('공시 목록')) {
+        // DART 미등재 종목 — 직접 검색 안내
+        const dartSearch = `https://dart.fss.or.kr/dsab007/main.do?option=corp&textCrpNm=${encodeURIComponent(name)}`;
+        if (confirm(`${name}은 DART 자동 조회가 안 됩니다.\n\nDART에서 직접 보고서를 찾아 NotebookLM에 추가하시겠습니까?`)) {
+          window.open(dartSearch, '_blank');
+          window.open('https://notebooklm.google.com/notebook/bfc3f589-787d-4f6e-a508-a833514366ed', '_blank');
+        }
+      } else if (d.dart_url) {
+        if (confirm(`자동 추가 실패: ${msg}\n\n수동으로 추가하시겠습니까?`)) {
           navigator.clipboard.writeText(d.dart_url).catch(() => {});
           window.open('https://notebooklm.google.com/notebook/bfc3f589-787d-4f6e-a508-a833514366ed', '_blank');
         }
