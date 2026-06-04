@@ -1472,24 +1472,49 @@ function renderPerResults(results) {
 
   list.innerHTML = results.map((item, idx) => {
     const fpe    = item.forward_pe;
+    const tpe    = item.trailing_pe;
     const perCls = fpe < 10 ? 'per-very-low' : fpe < 15 ? 'per-low' : fpe < 20 ? 'per-mid' : 'per-high';
     const chgCls = item.change_pct >= 0 ? 'up' : 'down';
     const sign   = item.change_pct >= 0 ? '+' : '';
-    const price  = perMarket === 'us'
-      ? (item.price ? '$' + item.price.toLocaleString('en-US', { minimumFractionDigits: 2 }) : '-')
-      : (item.price ? item.price.toLocaleString('ko-KR') + '원' : '-');
-    return `<div class="per-card" data-code="${item.ticker}" data-name="${escHtml(item.name)}">
-      <div class="rank-num ${idx < 3 ? 'top3' : ''}">${idx+1}</div>
-      <div class="per-info">
-        <div class="per-name">${escHtml(item.name)}</div>
-        <div class="per-sub">${item.ticker} · ${item.sector}</div>
+    const isKr   = perMarket === 'kr';
+    const price  = isKr
+      ? (item.price ? item.price.toLocaleString('ko-KR') + '원' : '-')
+      : (item.price ? '$' + item.price.toLocaleString('en-US', { minimumFractionDigits: 2 }) : '-');
+
+    // 펀더멘털 항목 헬퍼
+    const fmtVal = (v, suffix='', digits=1) => v != null ? v.toFixed(digits) + suffix : '-';
+    const metrics = [
+      { label:'선행PER',    val: fpe != null ? fpe.toFixed(1) : '-',  cls: perCls },
+      { label:'TTM PER',   val: tpe ? tpe.toFixed(1) : '-',          cls: '' },
+      { label:'PBR',       val: item.pbr != null ? item.pbr.toFixed(2)+'x' : '-', cls: '' },
+      { label:'ROE',       val: item.roe != null ? item.roe.toFixed(1)+'%' : '-',
+        cls: item.roe >= 15 ? 'up' : item.roe < 5 ? 'down' : '' },
+      { label:'배당수익률', val: item.div_yield != null ? item.div_yield.toFixed(2)+'%' : '-',
+        cls: item.div_yield >= 3 ? 'up' : '' },
+      { label:'업종PER',   val: item.sector_per != null ? item.sector_per.toFixed(1) : '-', cls: '' },
+    ];
+    const metricHtml = metrics.map(m =>
+      `<div class="per-metric">
+        <span class="per-metric-label">${m.label}</span>
+        <span class="per-metric-val ${m.cls}">${m.val}</span>
+      </div>`).join('');
+
+    return `<div class="per-card" data-code="${item.ticker}${isKr?'.KS':''}" data-name="${escHtml(item.name)}">
+      <div class="per-card-top">
+        <div class="per-card-left">
+          <div class="rank-num ${idx < 3 ? 'top3' : ''}">${idx+1}</div>
+          <div class="per-info">
+            <div class="per-name">${escHtml(item.name)}</div>
+            <div class="per-sub">${item.ticker} · ${escHtml(item.sector)}</div>
+          </div>
+        </div>
+        <div class="per-right">
+          <div class="per-price">${price}</div>
+          <div class="per-chg ${chgCls}">${sign}${item.change_pct}%</div>
+          ${watchBtnHtml(item.ticker + (isKr?'.KS':''), item.name, perMarket, 'value', item.price || 0)}
+        </div>
       </div>
-      <div class="per-badge ${perCls}">PER ${fpe.toFixed(1)}</div>
-      <div class="per-right">
-        <div class="per-price">${price}</div>
-        <div class="per-chg ${chgCls}">${sign}${item.change_pct}%</div>
-        ${watchBtnHtml(item.ticker, item.name, perMarket, 'value', item.price)}
-      </div>
+      <div class="per-metrics-row">${metricHtml}</div>
     </div>`;
   }).join('');
 
