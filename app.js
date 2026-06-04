@@ -2277,23 +2277,21 @@ async function runNotebookLM() {
     return;  // 아래 북마클릿 안내 코드 스킵
 
     // 북마클릿 코드 생성 (localhost:5000 직접 접근)
+    // ngrok URL 사용 → PC·폰 동일하게 작동
     const bmCode = `javascript:(async function(){
   const wait = ms => new Promise(r => setTimeout(r, ms));
   const find = sel => [...document.querySelectorAll(sel)];
   const findText = (sel, re) => find(sel).find(el => re.test(el.textContent.trim()));
   const fillInput = async (inp, val) => {
-    inp.focus(); inp.click();
-    await wait(200);
-    inp.select && inp.select();
-    // 여러 방식으로 값 입력 시도
-    const nativeInput = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value');
-    if (nativeInput) { nativeInput.set.call(inp, val); inp.dispatchEvent(new Event('input', {bubbles:true})); }
+    inp.focus(); inp.click(); await wait(200);
+    const nv = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value');
+    if (nv) { nv.set.call(inp, val); inp.dispatchEvent(new Event('input', {bubbles:true})); }
     else { document.execCommand('selectAll', false); document.execCommand('insertText', false, val); }
-    inp.value = val;
-    await wait(300);
+    inp.value = val; await wait(300);
   };
   try {
-    const resp = await fetch('http://localhost:5000/nlm/last-url');
+    // ngrok URL — PC·폰 모두 동작
+    const resp = await fetch('${ngrokUrl}/nlm/last-url', {headers:{'ngrok-skip-browser-warning':'1'}});
     const data = await resp.json();
     const url = data.url;
     if (!url) { alert('앱에서 먼저 📒 노트북LM 버튼을 클릭하세요.'); return; }
