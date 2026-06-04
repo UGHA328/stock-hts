@@ -2212,16 +2212,16 @@ async function runNotebookLM() {
           <div style="font-size:15px;font-weight:700;margin:8px 0">북마클릿 위치를 한 번만 기록합니다</div>
           <div style="font-size:12px;color:var(--muted)">이후 완전 자동화됩니다</div>
         </div>
-        <div class="ai-section-title">순서</div>
-        <ol style="padding-left:18px;font-size:13px;line-height:2.2">
-          <li>아래 <strong>"기록 시작"</strong> 클릭</li>
+        <div class="ai-section-title">순서 (순서대로 하세요!)</div>
+        <ol style="padding-left:18px;font-size:13px;line-height:2.4">
+          <li>아래 <strong>📎 링크를 북마크바로 드래그</strong>해서 설치</li>
+          <li>설치 확인 후 <strong>"기록 시작"</strong> 클릭</li>
           <li>NotebookLM 탭으로 이동</li>
           <li>북마크바에서 <strong>"NLM 소스추가"</strong> 클릭</li>
-          <li>완료! 이후 자동 클릭됩니다</li>
+          <li>✅ 완료! 이후 자동 클릭됩니다</li>
         </ol>
         <div class="ai-impact" style="border-left-color:var(--gold);margin:10px 0;font-size:12px">
-          ⚠ 북마클릿이 아직 없다면:<br>
-          아래 버튼을 북마크바로 드래그해서 먼저 설치하세요.
+          <strong>①번 먼저:</strong> 아래 링크를 북마크바로 드래그 설치
           <a href="javascript:(async function(){try{const r=await fetch('http://localhost:5000/nlm/last-url');const d=await r.json();const url=d.url;if(!url){alert('앱에서 노트북LM 버튼을 클릭 후 다시 시도');return;}const btns=[...document.querySelectorAll('button,[role=button]')];const addBtn=btns.find(b=>/소스.추가|add.source/i.test(b.textContent));if(!addBtn){const i=document.querySelector('input[type=url],input[type=text]');if(i){i.focus();i.select();document.execCommand('insertText',false,url);setTimeout(()=>{i.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true}))},300);}alert('소스추가 버튼 미발견. URL: '+url);return;}addBtn.click();await new Promise(r=>setTimeout(r,1200));const webBtn=[...document.querySelectorAll('button,[role=menuitem],[role=option],li,a')].find(b=>/웹사이트|website/i.test(b.textContent));if(webBtn){webBtn.click();await new Promise(r=>setTimeout(r,800));}const inp=document.querySelector('input[type=url],input[type=text],textarea');if(inp){inp.focus();inp.select();document.execCommand('insertText',false,url);await new Promise(r=>setTimeout(r,500));inp.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true}));await new Promise(r=>setTimeout(r,300));inp.dispatchEvent(new KeyboardEvent('keyup',{key:'Enter',bubbles:true}));}setTimeout(()=>{const okBtn=[...document.querySelectorAll('button')].find(b=>/삽입|추가|확인|insert|add|ok/i.test(b.textContent));if(okBtn)okBtn.click();},1000);alert('✅ 소스 추가 완료!');} catch(e){alert('오류: '+e.message);}})();"
              style="display:inline-block;padding:4px 10px;background:rgba(88,166,255,.1);border:1px solid rgba(88,166,255,.3);border-radius:6px;color:var(--accent);font-size:11px;text-decoration:none;cursor:grab;margin-top:6px">
             📎 NLM 소스추가 (드래그해서 북마크바에 설치)
