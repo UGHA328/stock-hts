@@ -2207,10 +2207,75 @@ async function runNotebookLM() {
   }
 }
 
+/* ── 차트분석 ── */
+async function runChartAnalysis() {
+  if (!currentSymbol) return;
+  const name = document.getElementById('stockName').textContent;
+  openAiModal('📈 차트분석 — ' + name);
+  try {
+    const d = await fetch(SERVER + '/ai/chart', {
+      method: 'POST', headers: { ...HDR, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ symbol: currentSymbol, name, market: currentMarket }),
+    }).then(r => r.json());
+
+    if (d.error) { document.getElementById('aiModalContent').innerHTML = `<p style="color:var(--red)">${escHtml(d.error)}</p>`; return; }
+
+    const opinionColor = d.opinion === 'buy' ? 'var(--green)' : d.opinion === 'sell' ? 'var(--red)' : 'var(--gold)';
+    const opinionLabel = d.opinion === 'buy' ? '📈 매수' : d.opinion === 'sell' ? '📉 매도' : '⏸ 관망';
+    const trendIcon    = d.trend === '상승' ? '↗' : d.trend === '하락' ? '↘' : '→';
+
+    const score = parseInt(d.buy_score) || 0;
+    const scoreColor = score >= 70 ? 'var(--green)' : score >= 50 ? 'var(--gold)' : 'var(--red)';
+    const scoreLabel = score >= 70 ? '매수 권장' : score >= 50 ? '중립·관망' : '매도·회피';
+
+    const positives = (d.signals?.positive || []).map(s => `<li style="color:var(--green)">✅ ${escHtml(s)}</li>`).join('');
+    const negatives = (d.signals?.negative || []).map(s => `<li style="color:var(--red)">❌ ${escHtml(s)}</li>`).join('');
+
+    document.getElementById('aiModalContent').innerHTML = `
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
+        <div style="font-size:28px;font-weight:900;color:${opinionColor}">${opinionLabel}</div>
+        <div>
+          <div style="font-size:12px;color:var(--muted)">추세: ${trendIcon} ${escHtml(d.trend || '')}</div>
+          <div style="font-size:12px;color:var(--muted)">${escHtml(d.trend_desc || '')}</div>
+        </div>
+      </div>
+
+      <div class="ai-section-title">📊 매수 점수</div>
+      <div style="display:flex;align-items:center;gap:10px;margin:8px 0 16px">
+        <div style="flex:1;background:var(--border);border-radius:6px;height:12px;overflow:hidden">
+          <div style="width:${score}%;height:100%;background:${scoreColor};border-radius:6px;transition:width .6s ease"></div>
+        </div>
+        <div style="font-size:22px;font-weight:800;color:${scoreColor};width:50px;text-align:right">${score}</div>
+        <div style="font-size:11px;color:${scoreColor};width:60px">${scoreLabel}</div>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:12px">📌 ${escHtml(d.score_basis || '')}</div>
+
+      <div class="ai-section-title">🔍 신호 분석</div>
+      <ul class="ai-list" style="margin-bottom:12px">${positives}${negatives}</ul>
+
+      <div class="ai-metrics-row" style="margin-bottom:12px">
+        ${d.support    ? `<div class="ai-metric"><span>지지선</span><strong style="color:var(--green)">${escHtml(d.support)}</strong></div>`    : ''}
+        ${d.resistance ? `<div class="ai-metric"><span>저항선</span><strong style="color:var(--red)">${escHtml(d.resistance)}</strong></div>` : ''}
+      </div>
+
+      <div class="ai-section-title">💬 종합 의견</div>
+      <div class="ai-impact" style="border-left-color:${opinionColor}">${escHtml(d.opinion_desc || '')}</div>
+
+      <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+        ${d.short_term ? `<div class="ai-impact" style="flex:1;border-left-color:var(--accent)">📅 단기: ${escHtml(d.short_term)}</div>` : ''}
+        ${d.risk ? `<div class="ai-impact" style="flex:1;border-left-color:var(--red)">⚠ 리스크: ${escHtml(d.risk)}</div>` : ''}
+      </div>
+      <div class="ai-disclaimer">⚠ 본 분석은 기술적 지표 기반 참고용이며 투자 권유가 아닙니다.</div>`;
+  } catch(e) {
+    document.getElementById('aiModalContent').innerHTML = `<p style="color:var(--red)">오류: ${escHtml(e.message)}</p>`;
+  }
+}
+
 /* ── AI 버튼 이벤트 ── */
 document.getElementById('btnNews').addEventListener('click', runAiNews);
 document.getElementById('btnDart').addEventListener('click', runAiDart);
 document.getElementById('btnValuation').addEventListener('click', runAiValuation);
+document.getElementById('btnChart').addEventListener('click', runChartAnalysis);
 document.getElementById('btnNotebookLM').addEventListener('click', runNotebookLM);
 document.getElementById('fortuneRunBtn').addEventListener('click', runFortune);
 
