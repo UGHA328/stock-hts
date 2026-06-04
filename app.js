@@ -2246,49 +2246,113 @@ async function runChartAnalysis() {
     const opinionColor = d.opinion === 'buy' ? 'var(--green)' : d.opinion === 'sell' ? 'var(--red)' : 'var(--gold)';
     const opinionLabel = d.opinion === 'buy' ? '📈 매수' : d.opinion === 'sell' ? '📉 매도' : '⏸ 관망';
     const trendIcon    = d.trend === '상승' ? '↗' : d.trend === '하락' ? '↘' : '→';
-
     const score = parseInt(d.buy_score) || 0;
     const scoreColor = score >= 70 ? 'var(--green)' : score >= 50 ? 'var(--gold)' : 'var(--red)';
     const scoreLabel = score >= 70 ? '매수 권장' : score >= 50 ? '중립·관망' : '매도·회피';
+
+    // 지표 상세 카드 렌더링
+    const indicatorCards = (d.indicator_details || []).map(ind => `
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <span style="font-weight:700;font-size:13px">${escHtml(ind.name)}</span>
+          <span style="font-size:12px;color:var(--accent);font-weight:600">${escHtml(ind.value || '')}</span>
+        </div>
+        <div style="font-size:11px;color:var(--gold);margin-bottom:4px">📖 ${escHtml(ind.what || '')}</div>
+        <div style="font-size:12px;color:#c9d1d9;line-height:1.6;margin-bottom:4px">${escHtml(ind.meaning || '')}</div>
+        <div style="font-size:11px;color:var(--green)">→ ${escHtml(ind.action || '')}</div>
+      </div>`).join('');
 
     const positives = (d.signals?.positive || []).map(s => `<li style="color:var(--green)">✅ ${escHtml(s)}</li>`).join('');
     const negatives = (d.signals?.negative || []).map(s => `<li style="color:var(--red)">❌ ${escHtml(s)}</li>`).join('');
 
     document.getElementById('aiModalContent').innerHTML = `
-      <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
-        <div style="font-size:28px;font-weight:900;color:${opinionColor}">${opinionLabel}</div>
-        <div>
-          <div style="font-size:12px;color:var(--muted)">추세: ${trendIcon} ${escHtml(d.trend || '')}</div>
-          <div style="font-size:12px;color:var(--muted)">${escHtml(d.trend_desc || '')}</div>
-        </div>
+      <!-- ① 미니 차트 -->
+      <div style="height:130px;margin-bottom:14px;position:relative">
+        <canvas id="chartAnalysisMini"></canvas>
       </div>
 
-      <div class="ai-section-title">📊 매수 점수</div>
-      <div style="display:flex;align-items:center;gap:10px;margin:8px 0 16px">
-        <div style="flex:1;background:var(--border);border-radius:6px;height:12px;overflow:hidden">
-          <div style="width:${score}%;height:100%;background:${scoreColor};border-radius:6px;transition:width .6s ease"></div>
+      <!-- ② 매수의견 + 점수 -->
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
+        <div style="font-size:26px;font-weight:900;color:${opinionColor}">${opinionLabel}</div>
+        <div style="flex:1">
+          <div style="font-size:12px;color:var(--muted)">${trendIcon} ${escHtml(d.trend||'')} — ${escHtml(d.trend_desc||'')}</div>
         </div>
-        <div style="font-size:22px;font-weight:800;color:${scoreColor};width:50px;text-align:right">${score}</div>
-        <div style="font-size:11px;color:${scoreColor};width:60px">${scoreLabel}</div>
       </div>
-      <div style="font-size:11px;color:var(--muted);margin-bottom:12px">📌 ${escHtml(d.score_basis || '')}</div>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+        <div style="flex:1;background:var(--border);border-radius:6px;height:10px;overflow:hidden">
+          <div style="width:${score}%;height:100%;background:${scoreColor};border-radius:6px;transition:width .8s"></div>
+        </div>
+        <span style="font-size:20px;font-weight:800;color:${scoreColor}">${score}</span>
+        <span style="font-size:11px;color:${scoreColor};width:56px">${scoreLabel}</span>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:14px">📌 ${escHtml(d.score_basis||'')}</div>
 
-      <div class="ai-section-title">🔍 신호 분석</div>
-      <ul class="ai-list" style="margin-bottom:12px">${positives}${negatives}</ul>
+      <!-- ③ 지표별 상세 설명 -->
+      <div class="ai-section-title">📐 기술지표 상세 분석</div>
+      ${indicatorCards}
 
-      <div class="ai-metrics-row" style="margin-bottom:12px">
-        ${d.support    ? `<div class="ai-metric"><span>지지선</span><strong style="color:var(--green)">${escHtml(d.support)}</strong></div>`    : ''}
+      <!-- ④ 신호 요약 -->
+      <div class="ai-section-title" style="margin-top:10px">🔍 신호 요약</div>
+      <ul class="ai-list" style="margin-bottom:10px">${positives}${negatives}</ul>
+
+      <!-- ⑤ 지지/저항선 -->
+      <div class="ai-metrics-row" style="margin-bottom:10px">
+        ${d.support    ? `<div class="ai-metric"><span>지지선</span><strong style="color:var(--green)">${escHtml(d.support)}</strong></div>` : ''}
         ${d.resistance ? `<div class="ai-metric"><span>저항선</span><strong style="color:var(--red)">${escHtml(d.resistance)}</strong></div>` : ''}
       </div>
 
+      <!-- ⑥ 종합 의견 -->
       <div class="ai-section-title">💬 종합 의견</div>
-      <div class="ai-impact" style="border-left-color:${opinionColor}">${escHtml(d.opinion_desc || '')}</div>
+      <div class="ai-impact" style="border-left-color:${opinionColor};margin-bottom:8px">${escHtml(d.opinion_desc||'')}</div>
 
-      <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
-        ${d.short_term ? `<div class="ai-impact" style="flex:1;border-left-color:var(--accent)">📅 단기: ${escHtml(d.short_term)}</div>` : ''}
-        ${d.risk ? `<div class="ai-impact" style="flex:1;border-left-color:var(--red)">⚠ 리스크: ${escHtml(d.risk)}</div>` : ''}
-      </div>
-      <div class="ai-disclaimer">⚠ 본 분석은 기술적 지표 기반 참고용이며 투자 권유가 아닙니다.</div>`;
+      <!-- ⑦ 단기 전망 -->
+      ${d.short_term ? `<div class="ai-impact" style="border-left-color:var(--accent);margin-bottom:8px">📅 단기 전망: ${escHtml(d.short_term)}</div>` : ''}
+
+      <!-- ⑧ 리스크 상세 -->
+      ${(d.risk || d.risk_detail) ? `
+      <div class="ai-section-title" style="margin-top:4px">⚠ 리스크 분석</div>
+      <div class="ai-impact" style="border-left-color:var(--red)">
+        <strong>${escHtml(d.risk||'')}</strong><br>
+        <span style="font-size:12px;color:#c9d1d9">${escHtml(d.risk_detail||'')}</span>
+      </div>` : ''}
+
+      <div class="ai-disclaimer" style="margin-top:12px">⚠ 본 분석은 기술적 지표 기반 참고용이며 투자 권유가 아닙니다.</div>`;
+
+    // 미니 차트 렌더링 (기존 priceChart 데이터 재활용)
+    try {
+      const miniCanvas = document.getElementById('chartAnalysisMini');
+      if (miniCanvas && priceChart?.data?.labels?.length) {
+        const last60 = n => priceChart.data.datasets[0].data.slice(-n);
+        const labels60 = priceChart.data.labels.slice(-60);
+        const closes60 = last60(60);
+        const minP = Math.min(...closes60.filter(v=>v!=null));
+        const maxP = Math.max(...closes60.filter(v=>v!=null));
+        new Chart(miniCanvas, {
+          type: 'line',
+          data: {
+            labels: labels60,
+            datasets: [{
+              data: closes60,
+              borderColor: d.trend === '상승' ? '#3fb950' : d.trend === '하락' ? '#f85149' : '#58a6ff',
+              borderWidth: 1.5, fill: true,
+              backgroundColor: d.trend === '상승' ? 'rgba(63,185,80,.08)' : d.trend === '하락' ? 'rgba(248,81,73,.08)' : 'rgba(88,166,255,.06)',
+              pointRadius: 0, tension: 0.3,
+            }],
+          },
+          options: {
+            responsive: true, maintainAspectRatio: false, animation: false,
+            plugins: { legend: { display: false }, tooltip: { enabled: false } },
+            scales: {
+              x: { display: false },
+              y: { display: true, position: 'right', min: minP*0.98, max: maxP*1.02,
+                   ticks: { color:'#8b949e', font:{size:9}, maxTicksLimit: 4,
+                            callback: v => v >= 1000 ? Math.round(v/1000)+'k' : v },
+                   grid: { color:'#21262d' } },
+            },
+          },
+        });
+      }
+    } catch(e) { /* 차트 렌더 실패해도 계속 */ }
   } catch(e) {
     document.getElementById('aiModalContent').innerHTML = `<p style="color:var(--red)">오류: ${escHtml(e.message)}</p>`;
   }
