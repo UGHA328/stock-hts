@@ -1207,16 +1207,23 @@ async function screenOne(symbol) {
     const high52  = is52WkHigh(highs);
     const bb      = calcBB(closes);
 
+    // ── 스크리너 v2.0 (2026-06-10, 백테스트 기반 개선) ──────
+    // 변경 이력: D:\stock_app\SCREENER_CHANGELOG.md 참조
     let score = 0;
     const signals = [];
 
-    if (vr >= 3)        { score += 3; signals.push(`거래량 ${vr.toFixed(1)}x`); }
-    else if (vr >= 2)   { score += 2; signals.push(`거래량 ${vr.toFixed(1)}x`); }
-    else if (vr >= 1.5) { score += 1; signals.push(`거래량 ${vr.toFixed(1)}x`); }
+    // 거래량: 5배+ 추가, 1.5배 제거 (백테스트: 1.5배는 노이즈)
+    if (vr >= 5)        { score += 4; signals.push(`거래량 ${vr.toFixed(1)}x`); }
+    else if (vr >= 3)   { score += 2; signals.push(`거래량 ${vr.toFixed(1)}x`); }
+    else if (vr >= 2)   { score += 1; signals.push(`거래량 ${vr.toFixed(1)}x`); }
+    // 1.5배 미만: 0점 (노이즈)
 
+    // RSI: 50~65로 하향 (백테스트: 과매수 구간 제거)
+    // 75초과는 0점 (이미 과매수)
     if (rsi !== null) {
-      if (rsi >= 60 && rsi <= 75) { score += 2; signals.push(`RSI ${rsi.toFixed(0)}`); }
-      else if (rsi > 50)           { score += 1; }
+      if (rsi >= 50 && rsi <= 65) { score += 2; signals.push(`RSI ${rsi.toFixed(0)}`); }
+      else if (rsi > 65 && rsi <= 75) { score += 1; signals.push(`RSI ${rsi.toFixed(0)}`); }
+      // rsi > 75: 0점 (과매수, 오히려 위험)
     }
 
     if (macd.golden)      { score += 3; signals.push('골든크로스'); }
@@ -1226,13 +1233,16 @@ async function screenOne(symbol) {
 
     if (high52) { score += 2; signals.push('52주 신고가'); }
 
-    if (bb.above)   { score += 2; signals.push('BB 상단돌파'); }
-    else if (bb.squeeze) { score += 1; signals.push('BB 수축'); }
+    // BB: 수축 후 돌파만 인정 (단순 상단 돌파는 역효과)
+    if (bb.above && bb.squeeze)  { score += 3; signals.push('BB 수축돌파'); }  // 강력
+    else if (bb.squeeze)          { score += 1; signals.push('BB 수축'); }       // 준비
+    // bb.above 단독: 0점 (평균회귀 위험)
 
     if (chgPct >= 3)     score += 2;
     else if (chgPct >= 1) score += 1;
 
-    if (score < 4) return null;
+    // 최소 점수 4→7 상향 (백테스트: 7점 미만 승률 47% 이하)
+    if (score < 7) return null;
 
     const ticker = symbol.replace(/\.(KS|KQ)$/, '');
     const krEntry = KR_STOCKS.find(s => s.code === ticker);
@@ -1311,10 +1321,11 @@ async function runScreener(refresh = false) {
 }
 
 function calcExitPlan(item) {
+  // v2.0: 최소 7점부터 표시되므로 등급 조정
   let targetPct, stopPct, holdDays, holdDaysNum;
   if (item.score >= 10)     { targetPct = 15; stopPct = 5; holdDays = '최대 5거래일'; holdDaysNum = 5; }
-  else if (item.score >= 7) { targetPct = 8;  stopPct = 5; holdDays = '최대 3거래일'; holdDaysNum = 3; }
-  else                       { targetPct = 5;  stopPct = 3; holdDays = '1~2거래일';   holdDaysNum = 2; }
+  else if (item.score >= 8) { targetPct = 10; stopPct = 5; holdDays = '최대 3거래일'; holdDaysNum = 3; }
+  else                       { targetPct = 8;  stopPct = 5; holdDays = '최대 2거래일'; holdDaysNum = 2; }
   const p = item.price;
   return {
     targetPct, stopPct, holdDays, holdDaysNum,
