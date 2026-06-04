@@ -2278,28 +2278,73 @@ async function runNotebookLM() {
 
     // 북마클릿 코드 생성 (localhost:5000 직접 접근)
     const bmCode = `javascript:(async function(){
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  const find = sel => [...document.querySelectorAll(sel)];
+  const findText = (sel, re) => find(sel).find(el => re.test(el.textContent.trim()));
+  const fillInput = async (inp, val) => {
+    inp.focus(); inp.click();
+    await wait(200);
+    inp.select && inp.select();
+    // 여러 방식으로 값 입력 시도
+    const nativeInput = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value');
+    if (nativeInput) { nativeInput.set.call(inp, val); inp.dispatchEvent(new Event('input', {bubbles:true})); }
+    else { document.execCommand('selectAll', false); document.execCommand('insertText', false, val); }
+    inp.value = val;
+    await wait(300);
+  };
   try {
-    const r = await fetch('http://localhost:5000/nlm/last-url');
-    const d = await r.json();
-    const url = d.url;
-    if (!url) { alert('앱에서 먼저 노트북LM 버튼을 클릭하세요.'); return; }
-    const btns = [...document.querySelectorAll('button, [role=button]')];
-    const addBtn = btns.find(b => /소스\\s*추가|add\\s*source/i.test(b.textContent));
-    if (!addBtn) { alert('소스추가 버튼을 찾지 못했습니다. 직접 추가해주세요.\\nURL: ' + url); return; }
-    addBtn.click(); await new Promise(r => setTimeout(r, 1200));
-    const webBtn = [...document.querySelectorAll('button,[role=menuitem],[role=option],li')].find(b => /웹사이트|website/i.test(b.textContent));
-    if (webBtn) { webBtn.click(); await new Promise(r => setTimeout(r, 800)); }
-    const inp = document.querySelector('input[type=url],input[type=text],textarea');
-    if (inp) {
-      inp.focus(); inp.select();
-      document.execCommand('insertText', false, url);
-      await new Promise(r => setTimeout(r, 400));
-      inp.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true}));
-      await new Promise(r => setTimeout(r, 400));
-      inp.dispatchEvent(new KeyboardEvent('keyup',{key:'Enter',bubbles:true}));
+    const resp = await fetch('http://localhost:5000/nlm/last-url');
+    const data = await resp.json();
+    const url = data.url;
+    if (!url) { alert('앱에서 먼저 📒 노트북LM 버튼을 클릭하세요.'); return; }
+
+    // 1. 소스 추가 다이얼로그가 이미 열려있는지 확인
+    let dialogOpen = !!findText('button,span', /웹사이트|website/i);
+
+    // 2. 아직 안 열렸으면 "+ 소스 추가" 클릭
+    if (!dialogOpen) {
+      const addBtn = findText('button,[role=button]', /소스\\s*추가|add\\s*source/i);
+      if (!addBtn) { alert('소스추가 버튼 없음. URL:\\n' + url); return; }
+      addBtn.click(); await wait(1500);
     }
-    alert('✅ 소스 추가 완료!\\n${escHtml(name)} 보고서가 추가됐습니다.');
-  } catch(e) { alert('오류: ' + e.message); }
+
+    // 3. "웹사이트" 버튼 클릭
+    const webBtn = findText('button,span,div,[role=button]', /^웹사이트$|^website$/i);
+    if (webBtn) { webBtn.click(); await wait(1000); }
+
+    // 4. URL 입력창 찾기 (다양한 선택자 시도)
+    let inp = null;
+    for (let i = 0; i < 10; i++) {
+      inp = find('input[type=url]')[0]
+         || find('input[type=text]').find(el => /url|주소|http/i.test(el.placeholder || ''))
+         || find('input[placeholder*="http"]')[0]
+         || find('input[placeholder*="URL"]')[0]
+         || find('input[placeholder*="url"]')[0];
+      if (inp) break;
+      await wait(300);
+    }
+
+    if (!inp) {
+      // 웹사이트 버튼 재시도
+      const wb2 = find('button,span').find(el => /웹사이트|website/i.test(el.textContent));
+      if (wb2) { wb2.click(); await wait(800); inp = find('input')[find('input').length - 1]; }
+    }
+
+    if (inp) {
+      await fillInput(inp, url);
+      await wait(300);
+      // Enter 또는 확인 버튼
+      const okBtn = findText('button', /삽입|추가|확인|insert|add$/i);
+      if (okBtn) { okBtn.click(); }
+      else { inp.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',keyCode:13,bubbles:true,cancelable:true})); }
+      await wait(500);
+      alert('✅ 소스 추가 완료!\\n질문: "${escHtml(name)} 보고서를 요약해줘"');
+    } else {
+      // 최후 수단: 클립보드 + 안내
+      await navigator.clipboard.writeText(url).catch(()=>{});
+      alert('URL 입력창을 찾지 못했습니다.\\n클립보드에 복사됐으니 직접 붙여넣기하세요:\\n' + url);
+    }
+  } catch(e) { alert('오류: ' + e.message + '\\nURL을 직접 붙여넣기하세요.'); }
 })();`;
 
     document.getElementById('aiModalContent').innerHTML = `
