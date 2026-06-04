@@ -21,7 +21,7 @@ body {
   background: var(--bg);
   color: var(--text);
   font-family: 'Segoe UI', -apple-system, sans-serif;
-  font-size: 14px;
+  font-size: 15.4px; /* 14px × 1.1 (+10%) */
   overscroll-behavior: none;
 }
 
