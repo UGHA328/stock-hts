@@ -2175,10 +2175,10 @@ async function runNotebookLM() {
   btn.textContent = '⏳ DART 보고서 준비 중...';
 
   try {
-    // 1. ngrok URL + 셋업 상태 확인
+    // 1. ngrok URL + 클릭 위치 기록 상태 확인
     const [pubRes, statusRes] = await Promise.all([
       fetch(SERVER + '/api/public-url', { headers: HDR }),
-      fetch(SERVER + '/nlm/status', { headers: HDR }),
+      fetch(SERVER + '/nlm/click-status', { headers: HDR }),
     ]);
     const pubData    = await pubRes.json();
     const statusData = await statusRes.json();
@@ -2200,11 +2200,81 @@ async function runNotebookLM() {
     fetch(dartDocUrl, { headers: { 'ngrok-skip-browser-warning': '1' } }).catch(() => {});
     try { await navigator.clipboard.writeText(dartDocUrl); } catch {}
 
-    // 3. NotebookLM 탭 열기 (이미 열려있으면 포커스)
-    const nlmTab = window.open('https://notebooklm.google.com/notebook/bfc3f589-787d-4f6e-a508-a833514366ed', 'notebooklm');
+    // 3. NotebookLM 탭 열기
+    window.open('https://notebooklm.google.com/notebook/bfc3f589-787d-4f6e-a508-a833514366ed', 'notebooklm');
 
-    // 4. 북마클릿 방식 안내 모달
+    // 4. 위치 미기록 → 처음 한 번 안내
+    if (!statusData.setup_complete) {
+      openAiModal('📒 노트북LM — 처음 설정 (1회)');
+      document.getElementById('aiModalContent').innerHTML = `
+        <div style="text-align:center;padding:14px 0">
+          <div style="font-size:40px">🖱️</div>
+          <div style="font-size:15px;font-weight:700;margin:8px 0">북마클릿 위치를 한 번만 기록합니다</div>
+          <div style="font-size:12px;color:var(--muted)">이후 완전 자동화됩니다</div>
+        </div>
+        <div class="ai-section-title">순서</div>
+        <ol style="padding-left:18px;font-size:13px;line-height:2.2">
+          <li>아래 <strong>"기록 시작"</strong> 클릭</li>
+          <li>NotebookLM 탭으로 이동</li>
+          <li>북마크바에서 <strong>"NLM 소스추가"</strong> 클릭</li>
+          <li>완료! 이후 자동 클릭됩니다</li>
+        </ol>
+        <div class="ai-impact" style="border-left-color:var(--gold);margin:10px 0;font-size:12px">
+          ⚠ 북마클릿이 아직 없다면:<br>
+          아래 버튼을 북마크바로 드래그해서 먼저 설치하세요.
+          <a href="javascript:(async function(){try{const r=await fetch('http://localhost:5000/nlm/last-url');const d=await r.json();const url=d.url;if(!url){alert('앱에서 노트북LM 버튼을 클릭 후 다시 시도');return;}const btns=[...document.querySelectorAll('button,[role=button]')];const addBtn=btns.find(b=>/소스.추가|add.source/i.test(b.textContent));if(!addBtn){const i=document.querySelector('input[type=url],input[type=text]');if(i){i.focus();i.select();document.execCommand('insertText',false,url);setTimeout(()=>{i.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true}))},300);}alert('소스추가 버튼 미발견. URL: '+url);return;}addBtn.click();await new Promise(r=>setTimeout(r,1200));const webBtn=[...document.querySelectorAll('button,[role=menuitem],[role=option],li,a')].find(b=>/웹사이트|website/i.test(b.textContent));if(webBtn){webBtn.click();await new Promise(r=>setTimeout(r,800));}const inp=document.querySelector('input[type=url],input[type=text],textarea');if(inp){inp.focus();inp.select();document.execCommand('insertText',false,url);await new Promise(r=>setTimeout(r,500));inp.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true}));await new Promise(r=>setTimeout(r,300));inp.dispatchEvent(new KeyboardEvent('keyup',{key:'Enter',bubbles:true}));}setTimeout(()=>{const okBtn=[...document.querySelectorAll('button')].find(b=>/삽입|추가|확인|insert|add|ok/i.test(b.textContent));if(okBtn)okBtn.click();},1000);alert('✅ 소스 추가 완료!');} catch(e){alert('오류: '+e.message);}})();"
+             style="display:inline-block;padding:4px 10px;background:rgba(88,166,255,.1);border:1px solid rgba(88,166,255,.3);border-radius:6px;color:var(--accent);font-size:11px;text-decoration:none;cursor:grab;margin-top:6px">
+            📎 NLM 소스추가 (드래그해서 북마크바에 설치)
+          </a>
+        </div>
+        <button id="nlmRecordBtn" class="run-btn" style="width:100%;background:var(--violet)">🖱️ 기록 시작 (8초 안에 북마클릿 클릭)</button>`;
+
+      document.getElementById('nlmRecordBtn').addEventListener('click', async () => {
+        const rb = document.getElementById('nlmRecordBtn');
+        rb.disabled = true; rb.textContent = '⏳ 8초 안에 북마클릿 클릭...';
+        await fetch(SERVER + '/nlm/record', { method: 'POST', headers: HDR });
+        let t = 8;
+        const countdown = setInterval(() => {
+          if (rb) rb.textContent = `⏳ ${t--}초 안에 북마클릿 클릭...`;
+          if (t < 0) {
+            clearInterval(countdown);
+            fetch(SERVER + '/nlm/click-status', { headers: HDR })
+              .then(r => r.json()).then(s => {
+                if (s.recorded) {
+                  if (rb) { rb.disabled = false; rb.textContent = '✅ 위치 기록 완료! 다시 버튼 클릭하면 자동화됩니다.'; }
+                } else {
+                  if (rb) { rb.disabled = false; rb.textContent = '❌ 기록 실패 — 다시 시도하세요'; }
+                }
+              });
+          }
+        }, 1000);
+      });
+      return;
+    }
+
+    // 자동 클릭 요청 (북마클릿 위치 기록됨)
+    fetch(SERVER + '/nlm/auto-click', {
+      method: 'POST', headers: { ...HDR, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dart_url: dartDocUrl }),
+    }).catch(() => {});
+
     openAiModal(`📒 노트북LM — ${name}`);
+    document.getElementById('aiModalContent').innerHTML = `
+      <div style="text-align:center;padding:16px 0">
+        <div style="font-size:40px">🚀</div>
+        <div style="font-size:15px;font-weight:700;margin:8px 0">자동 처리 중...</div>
+        <div style="font-size:12px;color:var(--muted)">NotebookLM 탭으로 이동하면 소스가 자동으로 추가됩니다</div>
+      </div>
+      <div class="ai-impact" style="border-left-color:var(--green)">
+        ✅ <strong>${escHtml(name)}</strong> 보고서 URL 자동 추가 중<br>
+        <small>추가 완료 후: <strong>"${escHtml(name)} 보고서를 요약해줘"</strong> 질문</small>
+      </div>
+      <div style="margin-top:10px;display:flex;gap:8px">
+        <button onclick="window.open('https://notebooklm.google.com/notebook/bfc3f589-787d-4f6e-a508-a833514366ed','notebooklm')" class="ai-btn" style="color:#4285f4">📒 NotebookLM 보기</button>
+        <button onclick="navigator.clipboard.writeText('${escHtml(dartDocUrl)}')" class="ai-btn">📋 URL 복사</button>
+      </div>
+      <div class="ai-disclaimer">북마클릿 위치를 변경했다면 앱 버튼을 다시 클릭해서 재기록하세요.</div>`;
+    return;  // 아래 북마클릿 안내 코드 스킵
 
     // 북마클릿 코드 생성 (localhost:5000 직접 접근)
     const bmCode = `javascript:(async function(){
