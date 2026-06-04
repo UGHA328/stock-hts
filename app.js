@@ -2273,7 +2273,22 @@ async function runNotebookLM() {
         <button onclick="window.open('https://notebooklm.google.com/notebook/bfc3f589-787d-4f6e-a508-a833514366ed','notebooklm')" class="ai-btn" style="color:#4285f4">📒 NotebookLM 보기</button>
         <button onclick="navigator.clipboard.writeText('${escHtml(dartDocUrl)}')" class="ai-btn">📋 URL 복사</button>
       </div>
+      <details style="margin-top:10px">
+        <summary style="cursor:pointer;font-size:12px;color:var(--muted)">🔧 북마클릿 재설치 / 업데이트</summary>
+        <div style="margin-top:8px;font-size:12px">
+          아래 링크를 북마크바로 드래그해서 기존 것과 교체하세요:<br>
+          <a id="nlmBmLink" href="#" style="display:inline-block;padding:5px 12px;background:rgba(88,166,255,.1);border:1px solid rgba(88,166,255,.3);border-radius:6px;color:var(--accent);text-decoration:none;cursor:grab;margin-top:6px;font-size:11px"
+             onclick="event.preventDefault();alert('이 링크를 북마크바로 드래그하세요')">
+            📎 NLM 소스추가 (드래그)
+          </a>
+        </div>
+      </details>
       <div class="ai-disclaimer">북마클릿 위치를 변경했다면 앱 버튼을 다시 클릭해서 재기록하세요.</div>`;
+    // 자동 모드에서도 북마클릿 링크 href 업데이트
+    setTimeout(() => {
+      const el = document.getElementById('nlmBmLink');
+      if (el) el.href = bmCode;
+    }, 100);
     return;  // 아래 북마클릿 안내 코드 스킵
 
     // 북마클릿 코드 생성 (localhost:5000 직접 접근)
