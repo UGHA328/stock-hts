@@ -2031,6 +2031,9 @@ async function runAiDart() {
       ${d.business_outlook ? `<div class="ai-section-title" style="margin-top:16px">🔭 사업 전망</div><div class="ai-impact">${escHtml(d.business_outlook)}</div>` : ''}
       ${risks ? `<ul class="ai-list ai-risk-list">${risks}</ul>` : ''}
       ${disclosures ? `<div class="ai-section-title" style="margin-top:16px">📄 최근 공시${isDart ? ' (실제)' : ''}</div>${disclosures}` : ''}
+      ${d.ai_opinion ? `
+      <div class="ai-section-title" style="margin-top:16px">🤖 AI 재무의견</div>
+      <div class="ai-impact" style="border-left-color:var(--violet)">${escHtml(d.ai_opinion)}</div>` : ''}
       <div class="ai-source">출처: ${escHtml(d.source || '')}</div>
       ${!isDart ? `<div class="ai-disclaimer" style="border-color:rgba(248,81,73,.3);background:rgba(248,81,73,.05)">
         ⚠ AI 추정값입니다. 실제 DART 공시와 다를 수 있습니다. 투자 전 반드시 <a href="https://dart.fss.or.kr" target="_blank" style="color:var(--accent)">DART 원문</a>을 확인하세요.
@@ -2162,43 +2165,63 @@ async function runFortune() {
 /* ── 기업보고서 (NotebookLM) ── */
 async function runNotebookLM() {
   if (!currentSymbol || currentMarket !== 'kr') {
-    alert('한국 종목을 선택해야 기업보고서 기능을 사용할 수 있습니다.');
+    alert('한국 종목을 선택해야 노트북LM 기능을 사용할 수 있습니다.');
     return;
   }
   const name = document.getElementById('stockName').textContent;
   const btn  = document.getElementById('btnNotebookLM');
   const orig = btn.textContent;
   btn.disabled = true;
-  btn.textContent = '⏳ 보고서 로딩 중...';
+  btn.textContent = '⏳ DART 보고서 준비 중...';
 
   try {
-    const res = await fetch(SERVER + '/ai/notebooklm', {
-      method: 'POST',
-      headers: { ...HDR, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ symbol: currentSymbol, name }),
-    });
-    const d = await res.json();
+    // 1. ngrok URL 가져오기
+    const pubRes = await fetch(SERVER + '/api/public-url', { headers: HDR });
+    const pubData = await pubRes.json();
+    const ngrokUrl = pubData.url;
 
-    if (d.success) {
-      alert(`✅ ${d.message}\n\nNotebookLM에서 "${name} 최신 보고서를 요약해줘"라고 질문하세요.`);
-    } else {
-      const msg = d.error || '알 수 없는 오류';
-      if (msg.includes('corp_code') || msg.includes('미등재') || msg.includes('공시 목록')) {
-        // DART 미등재 종목 — 직접 검색 안내
-        const dartSearch = `https://dart.fss.or.kr/dsab007/main.do?option=corp&textCrpNm=${encodeURIComponent(name)}`;
-        if (confirm(`${name}은 DART 자동 조회가 안 됩니다.\n\nDART에서 직접 보고서를 찾아 NotebookLM에 추가하시겠습니까?`)) {
-          window.open(dartSearch, '_blank');
-          window.open('https://notebooklm.google.com/notebook/bfc3f589-787d-4f6e-a508-a833514366ed', '_blank');
-        }
-      } else if (d.dart_url) {
-        if (confirm(`자동 추가 실패: ${msg}\n\n수동으로 추가하시겠습니까?`)) {
-          navigator.clipboard.writeText(d.dart_url).catch(() => {});
-          window.open('https://notebooklm.google.com/notebook/bfc3f589-787d-4f6e-a508-a833514366ed', '_blank');
-        }
-      } else {
-        alert('오류: ' + msg);
-      }
+    if (!ngrokUrl) {
+      alert('ngrok이 실행되지 않았습니다. start_ngrok.bat을 실행 후 다시 시도하세요.');
+      return;
     }
+
+    const clean = currentSymbol.replace('.KS','').replace('.KQ','');
+    const dartDocUrl = `${ngrokUrl}/dart-doc/${clean}`;
+
+    // 2. 보고서를 서버에서 미리 캐시 (백그라운드 preload)
+    fetch(dartDocUrl, { headers: { 'ngrok-skip-browser-warning': '1' } }).catch(() => {});
+
+    // 3. 클립보드에 URL 복사
+    try { await navigator.clipboard.writeText(dartDocUrl); } catch {}
+
+    // 4. NotebookLM 탭 열기
+    window.open('https://notebooklm.google.com/notebook/bfc3f589-787d-4f6e-a508-a833514366ed', '_blank');
+
+    // 5. 안내 메시지
+    openAiModal(`📒 노트북LM — ${name}`);
+    document.getElementById('aiModalContent').innerHTML = `
+      <div style="text-align:center;padding:10px 0 16px">
+        <div style="font-size:32px;margin-bottom:8px">✅</div>
+        <div style="font-size:15px;font-weight:700;margin-bottom:6px">NotebookLM이 열렸습니다</div>
+        <div style="font-size:12px;color:var(--muted)">DART 보고서 URL이 클립보드에 복사됐습니다</div>
+      </div>
+      <div class="ai-impact" style="border-left-color:var(--accent);margin:12px 0">
+        <strong>URL:</strong> <code style="font-size:11px;word-break:break-all">${escHtml(dartDocUrl)}</code>
+      </div>
+      <div class="ai-section-title">NotebookLM에서 할 일</div>
+      <ol style="padding-left:18px;font-size:13px;line-height:2">
+        <li>NotebookLM 탭으로 이동</li>
+        <li><strong>+ 소스 추가</strong> 클릭</li>
+        <li><strong>웹사이트</strong> 선택</li>
+        <li><kbd>Ctrl+V</kbd> 로 URL 붙여넣기</li>
+        <li>삽입 후 <strong>"${escHtml(name)} 최신 보고서를 요약해줘"</strong> 질문</li>
+      </ol>
+      <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">
+        <button onclick="navigator.clipboard.writeText('${escHtml(dartDocUrl)}')" class="ai-btn">📋 URL 다시 복사</button>
+        <button onclick="window.open('https://notebooklm.google.com/notebook/bfc3f589-787d-4f6e-a508-a833514366ed','_blank')" class="ai-btn" style="color:#4285f4">📒 NotebookLM 열기</button>
+      </div>
+      <div class="ai-disclaimer">※ 전년도 + 최근 정기보고서 2개가 포함된 URL입니다.</div>`;
+
   } catch (e) {
     alert('오류: ' + e.message);
   } finally {
