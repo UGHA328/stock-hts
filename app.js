@@ -2014,7 +2014,10 @@ async function runAiDart() {
       <div class="ai-section-title" style="margin-top:16px">🔭 사업 전망</div>
       <div class="ai-impact">${escHtml(d.business_outlook || '')}</div>
       ${risks ? `<ul class="ai-list ai-risk-list">${risks}</ul>` : ''}
-      <div class="ai-source">출처: ${escHtml(d.source || '')}</div>`;
+      <div class="ai-source">출처: ${escHtml(d.source || '')}</div>
+      <div class="ai-disclaimer" style="border-color:rgba(248,81,73,.3);background:rgba(248,81,73,.05)">
+        ⚠ AI 추정값입니다. 실제 DART 공시와 다를 수 있습니다. 투자 전 반드시 <a href="https://dart.fss.or.kr" target="_blank" style="color:var(--accent)">DART 원문</a>을 확인하세요.
+      </div>`;
   } catch (e) {
     document.getElementById('aiModalContent').innerHTML = `<p style="color:var(--red)">오류: ${escHtml(e.message)}</p>`;
   }
