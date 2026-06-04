@@ -1,11 +1,11 @@
 'use strict';
 
 /* ── 상태 ── */
-let currentMarket = 'us';
+let currentMarket = 'kr';
 let currentSymbol = null;
-let screenerMarket = 'us';
-let perMarket = 'us';
-let watchMarket = 'us';
+let screenerMarket = 'kr';
+let perMarket = 'kr';
+let watchMarket = 'kr';
 let priceChart = null;
 let volumeChart = null;
 let searchTimer = null;
@@ -1495,7 +1495,7 @@ function renderPerResults(results) {
 }
 
 /* ── 배당 스크리너 ── */
-let divMarket = 'us';
+let divMarket = 'kr';
 
 async function runDivScreener(refresh = false) {
   const btn  = document.getElementById('divRunBtn');
