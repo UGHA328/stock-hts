@@ -2609,26 +2609,27 @@ async function loadLegendsActivity() {
       const trades = activity.trades || [];
       const tradesHtml = trades.length
         ? trades.map(t => `
-          <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
-            <div>
-              <span style="font-weight:600;font-size:13px">${escHtml(t.name||t.ticker)}</span>
-              <span style="font-size:10px;color:var(--muted);margin-left:6px">${escHtml(t.ticker||'')}</span>
-              ${t.market==='kr'?'<span style="font-size:10px;background:rgba(255,255,255,.1);padding:1px 5px;border-radius:4px;margin-left:4px">KR</span>':''}
-            </div>
-            <div style="text-align:right">
-              <div style="font-size:12px;color:${t.action==='buy'?'var(--green)':'var(--red)'}">
-                ${t.action==='buy'?'▲ 매수':'▼ 매도'} ${t.weight ? t.weight+'%' : ''}
+          <div style="padding:8px 0;border-bottom:1px solid var(--border)">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <div>
+                <span style="font-weight:600;font-size:13px">${escHtml(t.name||t.ticker)}</span>
+                <span style="font-size:10px;color:var(--muted);margin-left:6px">${escHtml(t.ticker||'')}</span>
               </div>
-              ${t.price ? `<div style="font-size:11px;color:var(--muted)">${escHtml(t.price)}</div>` : ''}
-              ${t.date  ? `<div style="font-size:10px;color:var(--muted)">${escHtml(t.date)}</div>`  : ''}
+              <div style="text-align:right;flex-shrink:0;margin-left:8px">
+                <span style="font-size:12px;font-weight:700;color:${t.action==='buy'?'var(--green)':'var(--red)'}">
+                  ${t.action==='buy'?'▲ 매수':'▼ 매도'}
+                </span>
+                ${t.date ? `<span style="font-size:10px;color:var(--muted);margin-left:6px">${escHtml(t.date)}</span>` : ''}
+              </div>
             </div>
+            ${t.note ? `<div style="font-size:11px;color:var(--muted);margin-top:3px">${escHtml(t.note)}</div>` : ''}
           </div>`).join('')
-        : `<div style="color:var(--muted);font-size:12px;padding:8px 0">최근 매매 없음 또는 정보 미공개</div>`;
+        : `<div style="color:var(--muted);font-size:12px;padding:8px 0">최근 공개 매매 없음</div>`;
 
       return `<div style="background:var(--surface);border:1px solid var(--border);border-left:3px solid ${l.color};border-radius:10px;padding:14px;margin-bottom:12px">
         <div style="font-weight:700;font-size:14px;margin-bottom:10px">${l.icon} ${l.label}</div>
         ${tradesHtml}
-        ${activity.note ? `<div style="font-size:11px;color:var(--muted);margin-top:8px">📌 ${escHtml(activity.note)}</div>` : ''}
+        ${(activity.summary||activity.note) ? `<div style="font-size:11px;color:var(--muted);margin-top:8px;padding-top:6px;border-top:1px solid var(--border)">📌 ${escHtml(activity.summary||activity.note)}</div>` : ''}
       </div>`;
     }).join('');
 
