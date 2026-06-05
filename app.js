@@ -1968,7 +1968,12 @@ function openAiModal(title) {
     '<div class="ai-loading"><div class="spinner"></div><p>Gemini AI 분석 중...<br><small>검색 및 분석에 15~30초 소요됩니다</small></p></div>';
   document.getElementById('aiModal').classList.remove('hidden');
 }
-function closeAiModal() { document.getElementById('aiModal').classList.add('hidden'); }
+function closeAiModal() {
+  document.getElementById('aiModal').classList.add('hidden');
+  // 채팅 레이아웃 리셋 (다음 일반 AI 패널 표시 위해)
+  const c = document.getElementById('aiModalContent');
+  c.style.cssText = '';
+}
 
 function _sentimentBadge(s) {
   const map = { positive: ['긍정적', '#3fb950'], negative: ['부정적', '#f85149'], neutral: ['중립', '#8b949e'] };
@@ -2522,6 +2527,123 @@ async function runChartAnalysis() {
 }
 
 /* ── 투자 대가 분석 (종목탭 버핏 버튼) ── */
+/* ── AI Chat (종목 컨텍스트 기반 멀티턴 채팅) ── */
+let _chatHistory = [];
+let _chatSymbol  = null;
+
+function openAiChat() {
+  if (!currentSymbol) return;
+  const name = document.getElementById('stockName').textContent;
+
+  // 종목이 바뀌면 히스토리 초기화
+  if (_chatSymbol !== currentSymbol) {
+    _chatHistory = [];
+    _chatSymbol  = currentSymbol;
+  }
+
+  const modal = document.getElementById('aiModal');
+  const titleEl = document.getElementById('aiModalTitle');
+  const contentEl = document.getElementById('aiModalContent');
+
+  titleEl.textContent = `💬 AI Chat — ${name}`;
+  contentEl.innerHTML = '';
+  modal.classList.remove('hidden');
+
+  // 채팅 전용 레이아웃
+  contentEl.style.cssText = 'display:flex;flex-direction:column;height:420px;padding:0;';
+  contentEl.innerHTML = `
+    <div id="chatMessages" style="flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px;"></div>
+    <div style="display:flex;gap:8px;padding:10px 14px;border-top:1px solid var(--border);background:var(--bg);">
+      <input id="chatInput" type="text" placeholder="${name}에 대해 질문하세요..." autocomplete="off"
+        style="flex:1;background:var(--surface);border:1px solid var(--border);border-radius:8px;
+               padding:9px 12px;color:var(--text);font-size:14px;outline:none;">
+      <button id="chatSendBtn" style="background:#a78bfa;border:none;border-radius:8px;padding:9px 16px;
+               color:#fff;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;">전송</button>
+    </div>`;
+
+  // 기존 히스토리 복원
+  const msgBox = document.getElementById('chatMessages');
+  _chatHistory.forEach(h => _appendChatBubble(msgBox, h.role, h.content));
+  if (_chatHistory.length === 0) {
+    _appendChatBubble(msgBox, 'assistant',
+      `안녕하세요! ${name}에 대해 궁금한 점을 질문해 주세요.\n예) 오늘 하락 이유를 설명해줘 / PER 수준이 적정한가요?`);
+  }
+  msgBox.scrollTop = msgBox.scrollHeight;
+
+  const input  = document.getElementById('chatInput');
+  const sendBtn = document.getElementById('chatSendBtn');
+
+  const sendMsg = async () => {
+    const msg = input.value.trim();
+    if (!msg) return;
+    input.value = '';
+    sendBtn.disabled = true;
+
+    _appendChatBubble(msgBox, 'user', msg);
+    _chatHistory.push({ role: 'user', content: msg });
+    msgBox.scrollTop = msgBox.scrollHeight;
+
+    // 로딩 버블
+    const loadId = 'chatLoad_' + Date.now();
+    msgBox.insertAdjacentHTML('beforeend',
+      `<div id="${loadId}" style="align-self:flex-start;background:var(--surface);border:1px solid var(--border);
+         border-radius:12px 12px 12px 2px;padding:10px 14px;max-width:85%;color:var(--muted);font-size:13px;">
+         <span style="animation:pulse 1s infinite">●</span> 답변 생성 중...
+       </div>`);
+    msgBox.scrollTop = msgBox.scrollHeight;
+
+    try {
+      const fund = {
+        per:      document.getElementById('mPer')?.textContent,
+        fpe:      document.getElementById('mFpe')?.textContent,
+        pbr:      document.getElementById('mPbr')?.textContent,
+        roe:      document.getElementById('mRoe')?.textContent,
+        dividend: document.getElementById('mDiv')?.textContent,
+        price:    document.getElementById('stockPrice')?.textContent,
+      };
+      const res = await fetch(SERVER + '/ai/chat', {
+        method: 'POST', headers: { ...HDR, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          symbol: currentSymbol, name,
+          market: currentMarket, ...fund,
+          message: msg,
+          history: _chatHistory.slice(0, -1),  // 방금 추가한 user 제외
+        }),
+      }).then(r => r.json());
+
+      document.getElementById(loadId)?.remove();
+      const answer = res.answer || res.error || '응답 없음';
+      _appendChatBubble(msgBox, 'assistant', answer);
+      _chatHistory.push({ role: 'assistant', content: answer });
+    } catch(e) {
+      document.getElementById(loadId)?.remove();
+      _appendChatBubble(msgBox, 'assistant', '오류: ' + e.message);
+    }
+
+    sendBtn.disabled = false;
+    msgBox.scrollTop = msgBox.scrollHeight;
+    input.focus();
+  };
+
+  sendBtn.addEventListener('click', sendMsg);
+  input.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMsg(); } });
+  input.focus();
+}
+
+function _appendChatBubble(container, role, text) {
+  const isUser = role === 'user';
+  const div = document.createElement('div');
+  div.style.cssText = `
+    align-self:${isUser ? 'flex-end' : 'flex-start'};
+    background:${isUser ? 'rgba(167,139,250,.2)' : 'var(--surface)'};
+    border:1px solid ${isUser ? 'rgba(167,139,250,.4)' : 'var(--border)'};
+    border-radius:${isUser ? '12px 12px 2px 12px' : '12px 12px 12px 2px'};
+    padding:10px 14px;max-width:85%;font-size:13px;line-height:1.7;
+    color:var(--text);white-space:pre-wrap;word-break:break-word;`;
+  div.textContent = text;
+  container.appendChild(div);
+}
+
 async function runLegendAnalysis() {
   if (!currentSymbol) return;
   const name = document.getElementById('stockName').textContent;
@@ -2586,6 +2708,7 @@ document.getElementById('btnValuation').addEventListener('click', runAiValuation
 document.getElementById('btnChart').addEventListener('click', runChartAnalysis);
 document.getElementById('btnLegends').addEventListener('click', runLegendAnalysis);
 document.getElementById('btnNotebookLM').addEventListener('click', runNotebookLM);
+document.getElementById('btnAiChat').addEventListener('click', openAiChat);
 
 document.getElementById('fortuneRunBtn').addEventListener('click', runFortune);
 
