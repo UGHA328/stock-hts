@@ -53,6 +53,10 @@
       <span class="nav-icon">🔮</span>
       <span class="nav-label">운세</span>
     </button>
+    <button class="nav-btn" data-tab="legends">
+      <span class="nav-icon">🎩</span>
+      <span class="nav-label">버핏</span>
+    </button>
   </nav>
 
   <!-- 메인 영역 -->
@@ -99,6 +103,7 @@
             <button class="ai-btn" id="btnDart">📋 전자공시</button>
             <button class="ai-btn" id="btnValuation">💡 밸류에이션</button>
             <button class="ai-btn" id="btnChart" style="background:rgba(63,185,80,.1);color:var(--green);border-color:rgba(63,185,80,.3)">📈 차트분석</button>
+            <button class="ai-btn" id="btnLegends" style="background:rgba(248,171,36,.12);color:var(--gold);border-color:rgba(248,171,36,.3)">🎩 버핏</button>
             <button class="ai-btn" id="btnNotebookLM" style="background:rgba(66,133,244,.12);color:#4285f4;border-color:rgba(66,133,244,.3)">📒 노트북LM</button>
           </div>
           <div class="metrics">
@@ -276,6 +281,25 @@
           <button class="wl-tab active" data-market="kr">🇰🇷 한국</button>
         </div>
         <div id="watchlistPanel" class="watchlist-panel"></div>
+      </div>
+
+      <!-- 버핏 탭 — 투자 대가 최근 매매 현황 -->
+      <div id="tab-legends" class="tab-pane hidden">
+        <div class="sc-controls">
+          <div style="font-size:14px;font-weight:700">🎩 투자 대가 최근 매매</div>
+          <button id="legendsRefreshBtn" class="icon-btn" onclick="loadLegendsActivity()">↺ 새로고침</button>
+        </div>
+        <p class="sc-desc">워렌 버핏·벤저민 그레이엄·피터 린치·레이 달리오의 최근 매수/매도 종목 (Groq AI 조회)</p>
+        <div class="sc-market-tabs" style="margin-bottom:10px">
+          <button class="legends-mkt active" data-m="all">🌍 전체</button>
+          <button class="legends-mkt" data-m="us">🇺🇸 미국</button>
+          <button class="legends-mkt" data-m="kr">🇰🇷 한국</button>
+        </div>
+        <div id="legendsLoading" class="sc-loading hidden">
+          <div class="spinner" style="border-top-color:var(--gold)"></div>
+          <p>투자 대가 매매 현황 조회 중...</p>
+        </div>
+        <div id="legendsContent"></div>
       </div>
 
       <!-- 운세 탭 -->
