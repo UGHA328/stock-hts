@@ -1796,7 +1796,7 @@ function loadWatchlistData() {
   } catch {}
 }
 
-function renderWatchlist() {
+async function renderWatchlist() {
   const panel = document.getElementById('watchlistPanel');
   const items = watchlist[watchMarket] || [];
   if (!items.length) {
@@ -1804,30 +1804,39 @@ function renderWatchlist() {
     return;
   }
 
+  const isKr = watchMarket === 'kr';
+
+  // 1단계: 즉시 렌더 (현재가 로딩 플레이스홀더)
   panel.innerHTML = items.map(item => {
     const src = SOURCE_META[item.source];
-    const priceStr = item.addPrice
-      ? (watchMarket === 'kr'
-          ? `${Number(item.addPrice).toLocaleString('ko-KR')}원`
-          : `$${Number(item.addPrice).toFixed(2)}`)
+    const entryPrice = Number(item.addPrice) || 0;
+    const entryStr = entryPrice
+      ? (isKr ? entryPrice.toLocaleString('ko-KR') + '원' : '$' + entryPrice.toFixed(2))
       : null;
     const cond = src ? src.desc : null;
 
     return `
-    <div class="wl-card ${item.code === currentSymbol ? 'active' : ''}" data-code="${item.code}" data-name="${escHtml(item.name || item.code)}">
-      <div class="wl-info">
-        <div class="wl-name">${escHtml(item.name || item.code)}</div>
+    <div class="wl-card ${item.code === currentSymbol ? 'active' : ''}"
+         data-code="${item.code}" data-name="${escHtml(item.name || item.code)}"
+         data-entry="${entryPrice}">
+      <div class="wl-info" style="flex:1;min-width:0">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start">
+          <div class="wl-name" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(item.name || item.code)}</div>
+          <div id="wl-price-${item.code}" style="text-align:right;flex-shrink:0;margin-left:8px;font-size:13px;color:var(--muted)">조회중…</div>
+        </div>
         <div class="wl-code">${item.code}${item.addDate ? ' · ' + item.addDate : ''}</div>
-        ${src || priceStr ? `<div class="wl-meta">
+        <div class="wl-meta" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:2px">
           ${src ? `<span class="wl-src-badge ${src.cls}">${src.label}</span>` : ''}
-          ${priceStr ? `<span class="wl-add-price">진입 ${priceStr}</span>` : ''}
-        </div>` : ''}
+          ${entryStr ? `<span class="wl-add-price">진입 ${entryStr}</span>` : ''}
+          <span id="wl-pnl-${item.code}" style="font-size:11px;color:var(--muted)"></span>
+        </div>
         ${cond ? `<div class="wl-cond">${cond}</div>` : ''}
       </div>
       <button class="wl-remove" data-code="${item.code}" data-market="${watchMarket}" title="관심 해제">×</button>
     </div>`;
   }).join('');
 
+  // 이벤트 바인딩
   panel.querySelectorAll('.wl-card').forEach(card => {
     card.addEventListener('click', e => {
       if (e.target.classList.contains('wl-remove')) return;
@@ -1841,6 +1850,48 @@ function renderWatchlist() {
   panel.querySelectorAll('.wl-remove').forEach(btn => {
     btn.addEventListener('click', () => removeFromWatch(btn.dataset.code, btn.dataset.market));
   });
+
+  // 2단계: 현재가 병렬 조회
+  const fetchPrice = async (item) => {
+    const entryPrice = Number(item.addPrice) || 0;
+    const priceEl = document.getElementById(`wl-price-${item.code}`);
+    const pnlEl   = document.getElementById(`wl-pnl-${item.code}`);
+    if (!priceEl) return;
+    try {
+      const url = isKr
+        ? `${SERVER}/api/kr/quote/${item.code}`
+        : `${SERVER}/api/us/quote/${item.code}`;
+      const q = await fetch(url, { headers: HDR }).then(r => r.json());
+      const cur = Number(q.price || q.regularMarketPrice || q.currentPrice || 0);
+      if (!cur) { priceEl.textContent = '-'; return; }
+
+      // 현재가 표시
+      const curStr = isKr ? cur.toLocaleString('ko-KR') + '원' : '$' + cur.toFixed(2);
+      const chg    = Number(q.change_pct || q.regularMarketChangePercent || 0);
+      const chgCol = chg >= 0 ? 'var(--green)' : 'var(--red)';
+      const chgStr = (chg >= 0 ? '+' : '') + chg.toFixed(2) + '%';
+      priceEl.innerHTML = `<span style="font-weight:700;color:${chgCol}">${curStr}</span>
+        <span style="font-size:10px;color:${chgCol};margin-left:3px">${chgStr}</span>`;
+
+      // 진입가 대비 수익
+      if (entryPrice > 0) {
+        const diff    = cur - entryPrice;
+        const diffPct = diff / entryPrice * 100;
+        const diffCol = diff >= 0 ? 'var(--green)' : 'var(--red)';
+        const diffStr = isKr
+          ? (diff >= 0 ? '+' : '') + Math.round(diff).toLocaleString('ko-KR') + '원'
+          : (diff >= 0 ? '+' : '') + '$' + Math.abs(diff).toFixed(2);
+        pnlEl.innerHTML = `<span style="color:${diffCol};font-weight:600">${diffStr} (${diffPct >= 0 ? '+' : ''}${diffPct.toFixed(1)}%)</span>`;
+      }
+    } catch {
+      priceEl.textContent = '-';
+    }
+  };
+
+  // 동시에 최대 5개씩 조회
+  for (let i = 0; i < items.length; i += 5) {
+    await Promise.all(items.slice(i, i + 5).map(fetchPrice));
+  }
 }
 
 /* ── 유틸 ── */
