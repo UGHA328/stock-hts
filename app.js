@@ -4,13 +4,20 @@
 const FONT_STEPS = [75, 85, 100, 110, 125, 140, 160];
 let _fontIdx = 2; // 기본 100%
 
+function _isLandscapeMobile() {
+  return window.innerWidth > window.innerHeight && window.innerWidth < 1024;
+}
+
 function _applyFontSize(idx) {
-  _fontIdx = Math.max(0, Math.min(FONT_STEPS.length - 1, idx));
-  const pct = FONT_STEPS[_fontIdx];
-  document.querySelector('.app').style.zoom = pct / 100;
+  if (idx !== undefined) {
+    _fontIdx = Math.max(0, Math.min(FONT_STEPS.length - 1, idx));
+    localStorage.setItem('fontSizeIdx', _fontIdx);
+  }
+  const base = FONT_STEPS[_fontIdx] / 100;
+  const zoom = _isLandscapeMobile() ? base * 2 : base;
+  document.querySelector('.app').style.zoom = zoom;
   const lbl = document.getElementById('fontSizeLabel');
-  if (lbl) lbl.textContent = pct + '%';
-  localStorage.setItem('fontSizeIdx', _fontIdx);
+  if (lbl) lbl.textContent = FONT_STEPS[_fontIdx] + '%';
 }
 
 // 저장된 설정 복원 & 버튼 연결 (스크립트는 </body> 직전 → DOM 이미 완성)
@@ -19,6 +26,8 @@ function _applyFontSize(idx) {
   _applyFontSize(isNaN(saved) ? 2 : saved);
   document.getElementById('fontIncBtn').addEventListener('click', () => _applyFontSize(_fontIdx + 1));
   document.getElementById('fontDecBtn').addEventListener('click', () => _applyFontSize(_fontIdx - 1));
+  // 화면 회전 감지
+  window.addEventListener('resize', () => _applyFontSize());
 })();
 
 /* ── 상태 ── */
