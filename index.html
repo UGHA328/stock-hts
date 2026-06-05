@@ -60,9 +60,16 @@
 
     <header class="top-bar">
       <div class="app-title">2425 주식 HTS</div>
-      <div class="market-toggle">
-        <button class="tab-btn" data-market="us">🇺🇸 US</button>
-        <button class="tab-btn active" data-market="kr">🇰🇷 KR</button>
+      <div style="display:flex;align-items:center;gap:8px">
+        <div class="font-size-ctrl">
+          <button id="fontDecBtn" title="글자 작게">A-</button>
+          <span id="fontSizeLabel">100%</span>
+          <button id="fontIncBtn" title="글자 크게">A+</button>
+        </div>
+        <div class="market-toggle">
+          <button class="tab-btn" data-market="us">🇺🇸 US</button>
+          <button class="tab-btn active" data-market="kr">🇰🇷 KR</button>
+        </div>
       </div>
     </header>
 
