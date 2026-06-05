@@ -53,10 +53,6 @@
       <span class="nav-icon">🔮</span>
       <span class="nav-label">운세</span>
     </button>
-    <button class="nav-btn" data-tab="legends">
-      <span class="nav-icon">🎩</span>
-      <span class="nav-label">버핏</span>
-    </button>
   </nav>
 
   <!-- 메인 영역 -->
@@ -281,25 +277,6 @@
           <button class="wl-tab active" data-market="kr">🇰🇷 한국</button>
         </div>
         <div id="watchlistPanel" class="watchlist-panel"></div>
-      </div>
-
-      <!-- 버핏 탭 — 투자 대가 최근 매매 현황 -->
-      <div id="tab-legends" class="tab-pane hidden">
-        <div class="sc-controls">
-          <div style="font-size:14px;font-weight:700">🎩 투자 대가 최근 매매</div>
-          <button id="legendsRefreshBtn" class="icon-btn" onclick="loadLegendsActivity()">↺ 새로고침</button>
-        </div>
-        <p class="sc-desc">워렌 버핏·벤저민 그레이엄·피터 린치·레이 달리오의 최근 매수/매도 종목 (Groq AI 조회)</p>
-        <div class="sc-market-tabs" style="margin-bottom:10px">
-          <button class="legends-mkt active" data-m="all">🌍 전체</button>
-          <button class="legends-mkt" data-m="us">🇺🇸 미국</button>
-          <button class="legends-mkt" data-m="kr">🇰🇷 한국</button>
-        </div>
-        <div id="legendsLoading" class="sc-loading hidden">
-          <div class="spinner" style="border-top-color:var(--gold)"></div>
-          <p>투자 대가 매매 현황 조회 중...</p>
-        </div>
-        <div id="legendsContent"></div>
       </div>
 
       <!-- 운세 탭 -->

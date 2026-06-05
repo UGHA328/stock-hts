@@ -1615,7 +1615,6 @@ function switchTab(tabId) {
   if (tabId === 'watch') renderWatchlist();
   if (tabId === 'home') document.getElementById('searchInput').focus();
   if (tabId === 'perf') updatePerfPrices().then(hist => renderPerfTab(hist));
-  if (tabId === 'legends') loadLegendsActivity();
 }
 
 /* ── 마켓 전환 ── */
@@ -2580,69 +2579,6 @@ async function runLegendAnalysis() {
   }
 }
 
-/* ── 버핏 탭 — 투자 대가 최근 매매 현황 ── */
-let legendsMkt = 'all';
-
-async function loadLegendsActivity() {
-  const load = document.getElementById('legendsLoading');
-  const content = document.getElementById('legendsContent');
-  load.classList.remove('hidden');
-  content.innerHTML = '';
-  try {
-    const res = await fetch(SERVER + '/ai/legends-activity', {
-      method: 'POST', headers: { ...HDR, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ market: legendsMkt }),
-    });
-    const d = await res.json();
-    if (d.error) { content.innerHTML = `<p style="color:var(--red)">${escHtml(d.error)}</p>`; return; }
-
-    const legends = [
-      { key:'buffett', label:'워렌 버핏',       icon:'🇺🇸', color:'#4285f4' },
-      { key:'graham',  label:'벤저민 그레이엄', icon:'📚', color:'var(--gold)' },
-      { key:'lynch',   label:'피터 린치',        icon:'📈', color:'var(--green)' },
-      { key:'dalio',   label:'레이 달리오',      icon:'🌊', color:'var(--violet)' },
-    ];
-
-    content.innerHTML = legends.map(l => {
-      const activity = d[l.key];
-      if (!activity) return '';
-      const trades = activity.trades || [];
-      const tradesHtml = trades.length
-        ? trades.map(t => `
-          <div style="padding:8px 0;border-bottom:1px solid var(--border)">
-            <div style="display:flex;justify-content:space-between;align-items:center">
-              <div>
-                <span style="font-weight:600;font-size:13px">${escHtml(t.name||t.ticker)}</span>
-                <span style="font-size:10px;color:var(--muted);margin-left:6px">${escHtml(t.ticker||'')}</span>
-              </div>
-              <div style="text-align:right;flex-shrink:0;margin-left:8px">
-                <span style="font-size:12px;font-weight:700;color:${t.action==='buy'?'var(--green)':'var(--red)'}">
-                  ${t.action==='buy'?'▲ 매수':'▼ 매도'}
-                </span>
-                ${t.date ? `<span style="font-size:10px;color:var(--muted);margin-left:6px">${escHtml(t.date)}</span>` : ''}
-              </div>
-            </div>
-            ${t.note ? `<div style="font-size:11px;color:var(--muted);margin-top:3px">${escHtml(t.note)}</div>` : ''}
-          </div>`).join('')
-        : `<div style="color:var(--muted);font-size:12px;padding:8px 0">최근 공개 매매 없음</div>`;
-
-      return `<div style="background:var(--surface);border:1px solid var(--border);border-left:3px solid ${l.color};border-radius:10px;padding:14px;margin-bottom:12px">
-        <div style="font-weight:700;font-size:14px;margin-bottom:10px">${l.icon} ${l.label}</div>
-        ${tradesHtml}
-        ${(activity.summary||activity.note) ? `<div style="font-size:11px;color:var(--muted);margin-top:8px;padding-top:6px;border-top:1px solid var(--border)">📌 ${escHtml(activity.summary||activity.note)}</div>` : ''}
-      </div>`;
-    }).join('');
-
-    if (!content.innerHTML.trim()) {
-      content.innerHTML = '<div style="color:var(--muted);text-align:center;padding:30px">데이터 없음</div>';
-    }
-  } catch(e) {
-    content.innerHTML = `<p style="color:var(--red)">오류: ${escHtml(e.message)}</p>`;
-  } finally {
-    load.classList.add('hidden');
-  }
-}
-
 /* ── AI 버튼 이벤트 ── */
 document.getElementById('btnNews').addEventListener('click', runAiNews);
 document.getElementById('btnDart').addEventListener('click', runAiDart);
@@ -2651,14 +2587,6 @@ document.getElementById('btnChart').addEventListener('click', runChartAnalysis);
 document.getElementById('btnLegends').addEventListener('click', runLegendAnalysis);
 document.getElementById('btnNotebookLM').addEventListener('click', runNotebookLM);
 
-// 버핏 탭 마켓 필터
-document.querySelectorAll('.legends-mkt').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('.legends-mkt').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    legendsMkt = btn.dataset.m;
-  });
-});
 document.getElementById('fortuneRunBtn').addEventListener('click', runFortune);
 
 /* ── 초기화 ── */
