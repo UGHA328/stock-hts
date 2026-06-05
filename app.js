@@ -1,29 +1,25 @@
 'use strict';
 
-/* ── 글자 크기 조절 ── */
-const FONT_STEPS = [80, 90, 100, 110, 120, 135, 150]; // % 단위
-const FONT_BASE  = 15.4; // px (style.css body 기준)
-let _fontIdx = FONT_STEPS.indexOf(100); // 기본 100%
+/* ── 글자 크기 조절 (CSS zoom — 모바일 포함 전체 스케일) ── */
+const FONT_STEPS = [75, 85, 100, 110, 125, 140, 160];
+let _fontIdx = 2; // 기본 100%
 
 function _applyFontSize(idx) {
   _fontIdx = Math.max(0, Math.min(FONT_STEPS.length - 1, idx));
   const pct = FONT_STEPS[_fontIdx];
-  document.body.style.fontSize = (FONT_BASE * pct / 100).toFixed(1) + 'px';
-  document.getElementById('fontSizeLabel').textContent = pct + '%';
+  document.querySelector('.app').style.zoom = pct / 100;
+  const lbl = document.getElementById('fontSizeLabel');
+  if (lbl) lbl.textContent = pct + '%';
   localStorage.setItem('fontSizeIdx', _fontIdx);
 }
 
-// 저장된 설정 복원
-(function () {
+// 저장된 설정 복원 & 버튼 연결 (스크립트는 </body> 직전 → DOM 이미 완성)
+(function initFontSize() {
   const saved = parseInt(localStorage.getItem('fontSizeIdx'), 10);
-  if (!isNaN(saved)) _applyFontSize(saved);
-  else _applyFontSize(2); // 100% 기본값
-})();
-
-document.addEventListener('DOMContentLoaded', () => {
+  _applyFontSize(isNaN(saved) ? 2 : saved);
   document.getElementById('fontIncBtn').addEventListener('click', () => _applyFontSize(_fontIdx + 1));
   document.getElementById('fontDecBtn').addEventListener('click', () => _applyFontSize(_fontIdx - 1));
-});
+})();
 
 /* ── 상태 ── */
 let currentMarket = 'kr';
