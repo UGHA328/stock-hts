@@ -590,6 +590,8 @@ function openRevBuyModal(ticker) {
   const item = _revLastRes.find(r => r.ticker === ticker);
   if (!item) return;
   _revBuyTicker = ticker;
+  _entryCode    = ticker;
+  _entryMarket  = revMarket;
   const ex  = calcRevExitPlan(item);
   const mkt = revMarket;
   document.getElementById('buyModalInfo').innerHTML =
@@ -839,33 +841,28 @@ async function addToWatchFromTab(ticker, name, market, source, price) {
     if (btn) { btn.textContent = '✅ 관심중'; setTimeout(() => { btn.textContent = '⭐ 관심'; }, 1500); }
     return;
   }
+  const addDate = new Date().toLocaleDateString('ko-KR');
   try {
-    // 조건은 서버(_get_conditions)에서 출처·스코어 기반으로 자동 결정
-    await fetch(SERVER + '/purchase', {
+    await fetch(SERVER + `/api/watchlist/${market}/${ticker}`, {
       method: 'POST',
       headers: { ...HDR, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ticker, name, market, entry_price: price, quantity: 1, source, score: 5, signals: [], rsi: 50 }),
+      body: JSON.stringify({ name, market, source, add_price: price, add_date: addDate }),
     });
   } catch (e) { console.warn('Flask 등록 실패:', e); }
   if (!watchlist[market]) watchlist[market] = [];
-  watchlist[market].push({
-    code: ticker, name,
-    source, addPrice: price,
-    addDate: new Date().toLocaleDateString('ko-KR'),
-  });
+  watchlist[market].push({ code: ticker, name, source, addPrice: price, addDate });
   saveWatchlist();
+  _refreshOwnedMap();
   const btn = document.querySelector(`[data-wl-ticker="${ticker}"]`);
   if (btn) { btn.textContent = '✅ 관심중'; btn.classList.add('wl-added'); }
-  ownedMap[ticker] = { ticker, name };
 }
 
 async function removeFromWatch(code, market) {
   watchlist[market] = (watchlist[market] || []).filter(i => i.code !== code);
   saveWatchlist();
-  try { await fetch(SERVER + `/purchase/${code}`, { method: 'DELETE', headers: HDR }); } catch {}
-  delete ownedMap[code];
+  _refreshOwnedMap();
+  try { await fetch(SERVER + `/api/watchlist/${market}/${code}`, { method: 'DELETE', headers: HDR }); } catch {}
   renderWatchlist();
-  // 화면에 보이는 버튼 업데이트
   const btn = document.querySelector(`[data-wl-ticker="${code}"]`);
   if (btn) { btn.textContent = '⭐ 관심'; btn.classList.remove('wl-added'); }
 }
@@ -882,39 +879,62 @@ function watchBtnHtml(ticker, name, market, source, price) {
   </button>`;
 }
 
-/* ── 보유종목 관리 ── */
-let ownedMap    = {};  // ticker → purchase info
-let _scItemMap  = {};  // ticker → screener item (모달용)
-let _lastScRes  = [];  // 마지막 스크리너 결과
+/* ── 보유 상태 (관심종목에서 파생) ── */
+let ownedMap   = {};  // ticker → {ticker, name}  (entryPrice 있는 항목만)
+let _scItemMap = {};  // ticker → screener item (모달용)
+let _lastScRes = [];  // 마지막 스크리너 결과
 
-async function loadPurchases() {
-  try {
-    const data = await apiFetch('/purchase');
-    ownedMap = {};
-    (data || []).forEach(p => { ownedMap[p.ticker] = p; });
-  } catch {}
+function _refreshOwnedMap() {
+  ownedMap = {};
+  ['us', 'kr'].forEach(mkt => {
+    (watchlist[mkt] || []).forEach(item => {
+      if (item.entryPrice) ownedMap[item.code] = { ticker: item.code, name: item.name };
+    });
+  });
 }
 
-let _buyTicker = null;
+/* ── 매수가 설정 모달 (관심종목 카드에서 호출) ── */
+let _entryCode   = null;
+let _entryMarket = null;
 
-function openBuyModal(ticker) {
-  const item = _scItemMap[ticker];
-  if (!item) return;
-  _buyTicker = ticker;
-  const ex  = calcExitPlan(item);
-  const mkt = screenerMarket;
-  const priceStr = mkt === 'us'
-    ? item.price.toFixed(2)
-    : String(Math.round(item.price));
+function openBuyModal(ticker, marketOverride) {
+  // 스크리너/반등 탭에서 호출 시: 관심종목에 추가 + 매수가 설정
+  const isRev   = document.getElementById('buyModal').dataset.mode === 'rev';
+  const mkt     = marketOverride || (isRev ? revMarket : screenerMarket);
+  const scItem  = _scItemMap[ticker] || _revLastRes?.find(r => r.ticker === ticker);
+  _entryCode    = ticker;
+  _entryMarket  = mkt;
+  _buyTicker    = ticker;
+
+  const name      = scItem?.name || ticker;
+  const curPrice  = scItem?.price || 0;
+  const priceStr  = mkt === 'us' ? curPrice.toFixed(2) : String(Math.round(curPrice));
+  const ex        = scItem ? (isRev ? calcRevExitPlan(scItem) : calcExitPlan(scItem)) : null;
+
   document.getElementById('buyModalInfo').innerHTML =
-    `<strong>${escHtml(item.name)}</strong> (${item.ticker})<br>` +
-    `현재가: ${mkt === 'us' ? '$' + item.price.toFixed(2) : item.price.toLocaleString('ko-KR') + '원'}<br>` +
-    `스코어: ${item.score}점 · RSI ${item.rsi}`;
+    `<strong>${escHtml(name)}</strong> (${ticker})<br>` +
+    (curPrice ? `현재가: ${mkt === 'us' ? '$' + curPrice.toFixed(2) : curPrice.toLocaleString('ko-KR') + '원'}` : '');
   document.getElementById('buyPrice').value = priceStr;
   document.getElementById('buyQty').value   = 1;
+  document.getElementById('buyExitInfo').innerHTML = ex
+    ? `목표가: +${ex.targetPct}% | 손절가: -${ex.stopPct}% | 보유기간: ${ex.holdDays}<br>매수가 설정 시 장중 카카오톡 알림을 보내드립니다.`
+    : `매수가 설정 시 장중 카카오톡 알림을 보내드립니다.`;
+  document.getElementById('buyModal').classList.remove('hidden');
+}
+
+function openEntryModal(code, market) {
+  // 관심종목 카드에서 직접 매수가 수정
+  _entryCode   = code;
+  _entryMarket = market;
+  _buyTicker   = code;
+  const item   = watchlist[market]?.find(i => i.code === code);
+  const name   = item?.name || code;
+  document.getElementById('buyModalInfo').innerHTML =
+    `<strong>${escHtml(name)}</strong> (${code})<br>매수가를 입력하면 카카오톡 알림이 활성화됩니다.`;
+  document.getElementById('buyPrice').value = item?.entryPrice || item?.addPrice || '';
+  document.getElementById('buyQty').value   = item?.quantity || 1;
   document.getElementById('buyExitInfo').innerHTML =
-    `목표가: +${ex.targetPct}% &nbsp;|&nbsp; 손절가: -${ex.stopPct}% &nbsp;|&nbsp; 보유기간: ${ex.holdDays}<br>` +
-    `조건 충족 시 카카오톡으로 알림을 발송합니다.`;
+    `매수가 입력 시 목표가·손절가 도달 시 장중 카카오톡으로 알림을 드립니다.<br>비워두면 알림이 해제됩니다.`;
   document.getElementById('buyModal').classList.remove('hidden');
 }
 
@@ -924,61 +944,84 @@ function closeBuyModal() {
   modal.dataset.mode = '';
   _buyTicker    = null;
   _revBuyTicker = null;
+  _entryCode    = null;
+  _entryMarket  = null;
 }
 
 async function confirmBuy() {
-  const isRev  = document.getElementById('buyModal').dataset.mode === 'rev';
-  const ticker = isRev ? _revBuyTicker : _buyTicker;
-  const item   = isRev ? _revLastRes.find(r => r.ticker === ticker) : _scItemMap[ticker];
-  if (!item) return;
-  const price = parseFloat(document.getElementById('buyPrice').value);
-  const qty   = parseInt(document.getElementById('buyQty').value, 10);
-  if (!price || !qty || qty < 1) { alert('매수가와 수량을 입력하세요.'); return; }
+  const ticker = _entryCode || _buyTicker;
+  const market = _entryMarket || screenerMarket;
+  if (!ticker) return;
 
-  const ex     = isRev ? calcRevExitPlan(item) : calcExitPlan(item);
-  const market = isRev ? revMarket : screenerMarket;
-  try {
-    const res = await fetch(SERVER + '/purchase', {
-      method: 'POST',
-      headers: { ...HDR, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        ticker:      item.ticker,
-        name:        item.name,
-        market,
-        entry_price: price,
-        quantity:    qty,
-        score:       item.score,
-        signals:     item.signals,
-        rsi:         item.rsi,
-        target_pct:  ex.targetPct,
-        stop_pct:    ex.stopPct,
-        hold_days:   ex.holdDaysNum,
-      }),
-    });
-    if (!res.ok) throw new Error('서버 오류');
-    const data = await res.json();
-    if (data.error) throw new Error(data.error);
-    ownedMap[item.ticker] = { ticker: item.ticker, name: item.name };
-    closeBuyModal();
-    if (isRev) renderRevResults(_revLastRes);
-    else renderScreenerResults(_lastScRes);
-    alert(`✅ ${item.name} 매수 등록!\n서버가 10분마다 매도 조건을 확인하고\n카카오톡으로 알림을 보내드립니다.`);
-  } catch (e) {
-    alert('등록 실패: ' + e.message);
+  const price = parseFloat(document.getElementById('buyPrice').value) || null;
+  const qty   = parseInt(document.getElementById('buyQty').value, 10) || 1;
+
+  // 관심종목에 없으면 먼저 추가
+  if (!watchlist[market]?.find(i => i.code === ticker)) {
+    const scItem = _scItemMap[ticker] || _revLastRes?.find(r => r.ticker === ticker);
+    const name   = scItem?.name || ticker;
+    watchlist[market] = watchlist[market] || [];
+    watchlist[market].push({ code: ticker, name, source: scItem?.source || '', addPrice: scItem?.price || 0,
+      addDate: new Date().toLocaleDateString('ko-KR') });
   }
+
+  // 로컬 watchlist에 entryPrice 설정
+  const wItem = watchlist[market].find(i => i.code === ticker);
+  if (wItem) {
+    if (price) {
+      wItem.entryPrice   = price;
+      wItem.quantity     = qty;
+      wItem.purchasedAt  = wItem.purchasedAt || new Date().toISOString();
+    } else {
+      delete wItem.entryPrice;
+      delete wItem.quantity;
+      delete wItem.purchasedAt;
+    }
+  }
+  saveWatchlist();
+  _refreshOwnedMap();
+
+  // 서버 동기화
+  const scItem = _scItemMap[ticker] || _revLastRes?.find(r => r.ticker === ticker);
+  try {
+    if (watchlist[market].find(i => i.code === ticker)) {
+      await fetch(SERVER + `/api/watchlist/${market}/${ticker}`, {
+        method: 'POST',
+        headers: { ...HDR, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name:        wItem?.name || ticker,
+          source:      scItem?.source || '',
+          add_price:   scItem?.price || wItem?.addPrice || 0,
+          add_date:    wItem?.addDate || '',
+          entry_price: price || null,
+          quantity:    price ? qty : null,
+          score:       scItem?.score || 5,
+          signals:     scItem?.signals || [],
+          rsi:         scItem?.rsi || 50,
+        }),
+      });
+    }
+  } catch (e) { console.warn('서버 동기화 실패:', e); }
+
+  closeBuyModal();
+  // 화면 갱신
+  const isRev = document.getElementById('buyModal').dataset.mode === 'rev';
+  if (_revLastRes?.find(r => r.ticker === ticker)) renderRevResults(_revLastRes);
+  if (_lastScRes?.find(r => r.ticker === ticker))  renderScreenerResults(_lastScRes);
+  if (document.querySelector('.nav-btn[data-tab="watch"]')?.classList.contains('active') ||
+      document.getElementById('watchPanel')?.style.display !== 'none') renderWatchlist();
+  if (price) alert(`✅ ${wItem?.name || ticker} 매수가 설정!\n장중(9~15시) 매도 조건 충족 시 카카오톡으로 알림을 드립니다.`);
 }
 
 async function sellStock(ticker) {
-  if (!confirm(`${ticker} 매도 처리하시겠습니까?\n(보유종목 목록에서 삭제됩니다)`)) return;
-  try {
-    await fetch(SERVER + `/purchase/${ticker}`, { method: 'DELETE', headers: HDR });
-    delete ownedMap[ticker];
-    if (_revLastRes.find(r => r.ticker === ticker)) renderRevResults(_revLastRes);
-    if (_lastScRes.find(r => r.ticker === ticker))  renderScreenerResults(_lastScRes);
-  } catch (e) {
-    alert('처리 실패: ' + e.message);
-  }
+  if (!confirm(`${ticker} 매도 처리하시겠습니까?\n(관심종목에서도 삭제됩니다)`)) return;
+  const market = Object.keys(watchlist).find(m => watchlist[m]?.find(i => i.code === ticker)) || 'kr';
+  await removeFromWatch(ticker, market);
+  if (_revLastRes?.find(r => r.ticker === ticker)) renderRevResults(_revLastRes);
+  if (_lastScRes?.find(r => r.ticker === ticker))  renderScreenerResults(_lastScRes);
 }
+
+let _buyTicker    = null;
 
 /* ── 성과 추적 ── */
 const PERF_KEY = 'perf_history_v1';
@@ -1838,29 +1881,36 @@ async function renderWatchlist() {
 
   // 1단계: 즉시 렌더 (현재가 로딩 플레이스홀더)
   panel.innerHTML = items.map(item => {
-    const src = SOURCE_META[item.source];
-    const entryPrice = Number(item.addPrice) || 0;
-    const entryStr = entryPrice
+    const src        = SOURCE_META[item.source];
+    const entryPrice = Number(item.entryPrice) || 0;
+    const entryStr   = entryPrice
       ? (isKr ? entryPrice.toLocaleString('ko-KR') + '원' : '$' + entryPrice.toFixed(2))
       : null;
-    const cond = src ? src.desc : null;
+    const qty        = item.quantity ? `×${item.quantity}주` : '';
+    const hasEntry   = !!entryPrice;
 
     return `
     <div class="wl-card ${item.code === currentSymbol ? 'active' : ''}"
          data-code="${item.code}" data-name="${escHtml(item.name || item.code)}"
          data-entry="${entryPrice}">
       <div class="wl-info" style="flex:1;min-width:0">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:6px">
           <div class="wl-name" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(item.name || item.code)}</div>
-          <div id="wl-price-${item.code}" style="text-align:right;flex-shrink:0;margin-left:8px;font-size:13px;color:var(--muted)">조회중…</div>
+          <div id="wl-price-${item.code}" style="text-align:right;flex-shrink:0;font-size:13px;color:var(--muted)">조회중…</div>
         </div>
         <div class="wl-code">${item.code}${item.addDate ? ' · ' + item.addDate : ''}</div>
-        <div class="wl-meta" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:2px">
+        <div class="wl-meta" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:4px">
           ${src ? `<span class="wl-src-badge ${src.cls}">${src.label}</span>` : ''}
-          ${entryStr ? `<span class="wl-add-price">진입 ${entryStr}</span>` : ''}
-          <span id="wl-pnl-${item.code}" style="font-size:11px;color:var(--muted)"></span>
+          ${hasEntry
+            ? `<span class="wl-entry-badge">📌 ${entryStr} ${qty}</span>`
+            : `<button class="wl-set-entry" data-code="${item.code}" data-market="${watchMarket}" title="매수가 설정 시 카카오 알림 활성화">💰 매수가 입력</button>`}
+          <span id="wl-pnl-${item.code}" style="font-size:12px"></span>
         </div>
-        ${cond ? `<div class="wl-cond">${cond}</div>` : ''}
+        ${hasEntry ? `
+        <div style="display:flex;gap:6px;margin-top:5px">
+          <button class="wl-set-entry" data-code="${item.code}" data-market="${watchMarket}" style="font-size:11px">✏️ 수정</button>
+          <button class="wl-clr-entry" data-code="${item.code}" data-market="${watchMarket}" style="font-size:11px">🔕 알림해제</button>
+        </div>` : ''}
       </div>
       <button class="wl-remove" data-code="${item.code}" data-market="${watchMarket}" title="관심 해제">×</button>
     </div>`;
@@ -1869,7 +1919,7 @@ async function renderWatchlist() {
   // 이벤트 바인딩
   panel.querySelectorAll('.wl-card').forEach(card => {
     card.addEventListener('click', e => {
-      if (e.target.classList.contains('wl-remove')) return;
+      if (e.target.closest('.wl-remove, .wl-set-entry, .wl-clr-entry')) return;
       currentMarket = watchMarket;
       document.querySelectorAll('.tab-btn').forEach(b =>
         b.classList.toggle('active', b.dataset.market === watchMarket));
@@ -1880,22 +1930,40 @@ async function renderWatchlist() {
   panel.querySelectorAll('.wl-remove').forEach(btn => {
     btn.addEventListener('click', () => removeFromWatch(btn.dataset.code, btn.dataset.market));
   });
+  panel.querySelectorAll('.wl-set-entry').forEach(btn => {
+    btn.addEventListener('click', () => openEntryModal(btn.dataset.code, btn.dataset.market));
+  });
+  panel.querySelectorAll('.wl-clr-entry').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const code = btn.dataset.code, mkt = btn.dataset.market;
+      const item = watchlist[mkt]?.find(i => i.code === code);
+      if (!item) return;
+      delete item.entryPrice; delete item.quantity; delete item.purchasedAt;
+      saveWatchlist(); _refreshOwnedMap();
+      try { await fetch(SERVER + `/api/watchlist/${mkt}/${code}`, {
+        method: 'PUT', headers: { ...HDR, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ entry_price: null }),
+      }); } catch {}
+      renderWatchlist();
+    });
+  });
 
   // 2단계: 현재가 병렬 조회
   const fetchPrice = async (item) => {
-    const entryPrice = Number(item.addPrice) || 0;
-    const priceEl = document.getElementById(`wl-price-${item.code}`);
-    const pnlEl   = document.getElementById(`wl-pnl-${item.code}`);
+    const entryPrice = Number(item.entryPrice) || 0;
+    const qty        = Number(item.quantity) || 0;
+    const priceEl    = document.getElementById(`wl-price-${item.code}`);
+    const pnlEl      = document.getElementById(`wl-pnl-${item.code}`);
     if (!priceEl) return;
     try {
       const url = isKr
         ? `${SERVER}/api/kr/quote/${item.code}`
         : `${SERVER}/api/us/quote/${item.code}`;
-      const q = await fetch(url, { headers: HDR }).then(r => r.json());
+      const q   = await fetch(url, { headers: HDR }).then(r => r.json());
       const cur = Number(q.price || q.regularMarketPrice || q.currentPrice || 0);
       if (!cur) { priceEl.textContent = '-'; return; }
 
-      // 현재가 표시
+      // 현재가
       const curStr = isKr ? cur.toLocaleString('ko-KR') + '원' : '$' + cur.toFixed(2);
       const chg    = Number(q.change_pct || q.regularMarketChangePercent || 0);
       const chgCol = chg >= 0 ? 'var(--green)' : 'var(--red)';
@@ -1903,15 +1971,19 @@ async function renderWatchlist() {
       priceEl.innerHTML = `<span style="font-weight:700;color:${chgCol}">${curStr}</span>
         <span style="font-size:10px;color:${chgCol};margin-left:3px">${chgStr}</span>`;
 
-      // 진입가 대비 수익
-      if (entryPrice > 0) {
+      // 매수가 대비 수익 (entryPrice 있을 때만)
+      if (entryPrice > 0 && pnlEl) {
         const diff    = cur - entryPrice;
         const diffPct = diff / entryPrice * 100;
-        const diffCol = diff >= 0 ? 'var(--green)' : 'var(--red)';
-        const diffStr = isKr
-          ? (diff >= 0 ? '+' : '') + Math.round(diff).toLocaleString('ko-KR') + '원'
-          : (diff >= 0 ? '+' : '') + '$' + Math.abs(diff).toFixed(2);
-        pnlEl.innerHTML = `<span style="color:${diffCol};font-weight:600">${diffStr} (${diffPct >= 0 ? '+' : ''}${diffPct.toFixed(1)}%)</span>`;
+        const col     = diff >= 0 ? 'var(--green)' : 'var(--red)';
+        const pctStr  = `${diffPct >= 0 ? '+' : ''}${diffPct.toFixed(1)}%`;
+        const sign    = diff >= 0 ? '+' : '';
+        const perStr  = isKr ? `${sign}${Math.round(diff).toLocaleString('ko-KR')}원` : `${sign}$${Math.abs(diff).toFixed(2)}`;
+        const total   = diff * qty;
+        const totStr  = qty > 1
+          ? (isKr ? ` · 총 ${total >= 0 ? '+' : ''}${Math.round(total).toLocaleString('ko-KR')}원` : ` · 총 ${total >= 0 ? '+' : ''}$${Math.abs(total).toFixed(2)}`)
+          : '';
+        pnlEl.innerHTML = `<span style="color:${col};font-weight:600">${perStr} (${pctStr})${totStr}</span>`;
       }
     } catch {
       priceEl.textContent = '-';
@@ -2797,5 +2869,5 @@ document.getElementById('fortuneRunBtn').addEventListener('click', runFortune);
 
 /* ── 초기화 ── */
 loadWatchlistData();
-loadPurchases();
+_refreshOwnedMap();
 initCharts();

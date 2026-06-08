@@ -567,6 +567,21 @@ body {
 .src-stock    { background: rgba(88,166,255,.15); color: var(--accent); border: 1px solid rgba(88,166,255,.3); }
 .wl-add-price { font-size: 11px; color: var(--muted); }
 .wl-cond { font-size: 10px; color: var(--muted); margin-top: 3px; }
+.wl-entry-badge {
+  font-size: 11px; color: var(--green); background: rgba(63,185,80,.12);
+  border: 1px solid rgba(63,185,80,.25); border-radius: 6px; padding: 1px 7px;
+}
+.wl-set-entry {
+  font-size: 11px; background: rgba(163,113,247,.12); color: var(--violet);
+  border: 1px solid rgba(163,113,247,.25); border-radius: 6px;
+  padding: 2px 8px; cursor: pointer;
+}
+.wl-set-entry:active { background: rgba(163,113,247,.25); }
+.wl-clr-entry {
+  font-size: 11px; background: rgba(248,81,73,.1); color: var(--red);
+  border: 1px solid rgba(248,81,73,.2); border-radius: 6px;
+  padding: 2px 8px; cursor: pointer;
+}
 
 /* ── 관심 빠른 추가 버튼 ── */
 .wl-quick-btn {
