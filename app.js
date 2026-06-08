@@ -2630,12 +2630,13 @@ function openAiChat() {
   contentEl.innerHTML = '';
   modal.classList.remove('hidden');
 
-  // 채팅 전용 레이아웃
-  contentEl.style.cssText = 'display:flex;flex-direction:column;height:420px;padding:0;';
+  // 채팅 전용 레이아웃 (고정 높이 없이 flex로 채움)
+  contentEl.style.cssText = 'display:flex;flex-direction:column;padding:0;overflow:hidden;';
   contentEl.innerHTML = `
-    <div id="chatMessages" style="flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px;"></div>
-    <div style="display:flex;gap:8px;padding:10px 14px;border-top:1px solid var(--border);background:var(--bg);">
-      <input id="chatInput" type="text" placeholder="${name}에 대해 질문하세요..." autocomplete="off"
+    <div id="chatMessages" style="flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px;min-height:120px;"></div>
+    <div style="display:flex;gap:8px;padding:10px 14px;border-top:1px solid var(--border);background:var(--bg);flex-shrink:0;">
+      <input id="chatInput" type="text" inputmode="text" enterkeyhint="send"
+        placeholder="${name}에 대해 질문하세요..." autocomplete="off"
         style="flex:1;background:var(--surface);border:1px solid var(--border);border-radius:8px;
                padding:9px 12px;color:var(--text);font-size:14px;outline:none;">
       <button id="chatSendBtn" style="background:#a78bfa;border:none;border-radius:8px;padding:9px 16px;
@@ -2708,7 +2709,8 @@ function openAiChat() {
 
   sendBtn.addEventListener('click', sendMsg);
   input.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMsg(); } });
-  input.focus();
+  // 모바일에서는 즉시 포커스 시 키보드가 모달을 가리므로 데스크탑에서만 자동 포커스
+  if (window.innerWidth > 600) input.focus();
 }
 
 function _appendChatBubble(container, role, text) {

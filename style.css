@@ -741,6 +741,13 @@ body {
   max-width: 620px; width: 94vw; max-height: 82vh;
   display: flex; flex-direction: column;
 }
+@media (max-width: 600px) {
+  .ai-modal-box { width: 100vw; max-width: 100vw; max-height: 88vh; border-radius: 16px 16px 0 0; }
+  #aiModal.modal-overlay { align-items: flex-end; }
+}
+@media (max-height: 500px) {
+  .ai-modal-box { max-height: 96vh; }
+}
 .ai-modal-header {
   display: flex; align-items: center; justify-content: space-between;
   padding-bottom: 10px; border-bottom: 1px solid var(--border); margin-bottom: 12px;
