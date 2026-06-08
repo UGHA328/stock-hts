@@ -2243,6 +2243,22 @@ async function runAiDart() {
       ${!isDart ? `<div class="ai-disclaimer" style="border-color:rgba(248,81,73,.3);background:rgba(248,81,73,.05)">
         ⚠ AI 추정값입니다. 실제 DART 공시와 다를 수 있습니다. 투자 전 반드시 <a href="https://dart.fss.or.kr" target="_blank" style="color:var(--accent)">DART 원문</a>을 확인하세요.
       </div>` : ''}`;
+
+    // ── 공시 데이터 기반 채팅 섹션 추가 ──
+    _dartContext = [
+      `종목: ${name} (${currentSymbol})`,
+      lq.period ? `최근 분기 (${lq.period}): 매출 ${lq.revenue||'N/A'}, 영업이익 ${lq.operating_profit||'N/A'}, 순이익 ${lq.net_profit||'N/A'}, 영업이익률 ${lq.op_margin||'N/A'}` : '',
+      (lq.highlights||[]).length ? `분기 하이라이트: ${lq.highlights.join(' / ')}` : '',
+      ar.year ? `연간 (${ar.year}): 매출 ${ar.revenue||'N/A'}, 영업이익 ${ar.operating_profit||'N/A'}, 순이익 ${ar.net_profit||'N/A'}` : '',
+      (ar.key_points||[]).length ? `연간 핵심: ${ar.key_points.join(' / ')}` : '',
+      (d.major_risks||[]).length ? `주요 위험: ${d.major_risks.join(' / ')}` : '',
+      d.business_outlook ? `사업 전망: ${d.business_outlook}` : '',
+      (d.recent_disclosures||[]).length ? `최근 공시:\n${d.recent_disclosures.map(x=>`  - ${x.date} ${x.title}`).join('\n')}` : '',
+      d.ai_opinion ? `AI 재무의견: ${d.ai_opinion}` : '',
+    ].filter(Boolean).join('\n');
+    _dartChatHistory = [];
+    _appendDartChat(name);
+
   } catch (e) {
     document.getElementById('aiModalContent').innerHTML = `<p style="color:var(--red)">오류: ${escHtml(e.message)}</p>`;
   }
@@ -2683,6 +2699,79 @@ async function runChartAnalysis() {
 /* ── AI Chat (종목 컨텍스트 기반 멀티턴 채팅) ── */
 let _chatHistory = [];
 let _chatSymbol  = null;
+
+/* ── DART 공시 채팅 ── */
+let _dartChatHistory = [];
+let _dartContext     = '';
+
+function _appendDartChat(name) {
+  const contentEl = document.getElementById('aiModalContent');
+  if (!contentEl) return;
+
+  // 채팅 섹션 HTML 추가
+  const sec = document.createElement('div');
+  sec.id = 'dartChatSection';
+  sec.style.cssText = 'margin-top:18px;border-top:1px solid var(--border);padding-top:14px;';
+  sec.innerHTML = `
+    <div class="ai-section-title" style="margin-bottom:10px">💬 공시 데이터에 대해 질문하세요</div>
+    <div id="dartChatMsgs" style="display:flex;flex-direction:column;gap:8px;margin-bottom:10px;min-height:0;"></div>
+    <div style="display:flex;gap:8px;">
+      <input id="dartChatInput" type="text" inputmode="text" enterkeyhint="send"
+        placeholder="예) 최신 분기 영업이익을 설명해줘"
+        style="flex:1;background:var(--surface);border:1px solid var(--border);border-radius:8px;
+               padding:9px 12px;color:var(--text);font-size:13px;outline:none;">
+      <button id="dartChatSend" style="background:#a78bfa;border:none;border-radius:8px;
+               padding:9px 14px;color:#fff;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;">전송</button>
+    </div>`;
+  contentEl.appendChild(sec);
+
+  const input   = document.getElementById('dartChatInput');
+  const sendBtn = document.getElementById('dartChatSend');
+  const msgBox  = document.getElementById('dartChatMsgs');
+
+  const send = async () => {
+    const msg = input.value.trim();
+    if (!msg) return;
+    input.value = '';
+    sendBtn.disabled = true;
+
+    _appendChatBubble(msgBox, 'user', msg);
+    _dartChatHistory.push({ role: 'user', content: msg });
+    msgBox.scrollIntoView({ behavior: 'smooth', block: 'end' });
+
+    const loadId = 'dload_' + Date.now();
+    msgBox.insertAdjacentHTML('beforeend',
+      `<div id="${loadId}" style="align-self:flex-start;background:var(--surface);border:1px solid var(--border);
+         border-radius:10px 10px 10px 2px;padding:8px 12px;font-size:12px;color:var(--muted)">● 답변 생성 중...</div>`);
+    msgBox.lastElementChild?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+
+    try {
+      const res = await fetch(SERVER + '/ai/dart-chat', {
+        method: 'POST', headers: { ...HDR, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          symbol: currentSymbol, name, market: currentMarket,
+          dart_context: _dartContext,
+          message: msg,
+          history: _dartChatHistory.slice(0, -1),
+        }),
+      }).then(r => r.json());
+
+      document.getElementById(loadId)?.remove();
+      const answer = res.answer || res.error || '응답 없음';
+      _appendChatBubble(msgBox, 'assistant', answer);
+      _dartChatHistory.push({ role: 'assistant', content: answer });
+    } catch(e) {
+      document.getElementById(loadId)?.remove();
+      _appendChatBubble(msgBox, 'assistant', '오류: ' + e.message);
+    }
+
+    sendBtn.disabled = false;
+    msgBox.lastElementChild?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  };
+
+  sendBtn.addEventListener('click', send);
+  input.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } });
+}
 
 function openAiChat() {
   if (!currentSymbol) return;
