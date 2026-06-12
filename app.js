@@ -1970,7 +1970,7 @@ async function renderWatchlist() {
       // 현재가
       const curStr = isKr ? cur.toLocaleString('ko-KR') + '원' : '$' + cur.toFixed(2);
       const chg    = Number(q.change_pct || q.regularMarketChangePercent || 0);
-      const chgCol = chg >= 0 ? 'var(--green)' : 'var(--red)';
+      const chgCol = chg >= 0 ? 'var(--red)' : 'var(--blue)';   // 한국식: 상승=빨강, 하락=파랑
       const chgStr = (chg >= 0 ? '+' : '') + chg.toFixed(2) + '%';
       priceEl.innerHTML = `<span style="font-weight:700;color:${chgCol}">${curStr}</span>
         <span style="font-size:10px;color:${chgCol};margin-left:3px">${chgStr}</span>`;
@@ -1979,7 +1979,7 @@ async function renderWatchlist() {
       if (entryPrice > 0 && pnlEl) {
         const diff    = cur - entryPrice;
         const diffPct = diff / entryPrice * 100;
-        const col     = diff >= 0 ? 'var(--green)' : 'var(--red)';
+        const col     = diff >= 0 ? 'var(--red)' : 'var(--blue)';   // 수익=빨강, 손실=파랑
         const pctStr  = `${diffPct >= 0 ? '+' : ''}${diffPct.toFixed(1)}%`;
         const sign    = diff >= 0 ? '+' : '';
         const perStr  = isKr ? `${sign}${Math.round(diff).toLocaleString('ko-KR')}원` : `${sign}$${Math.abs(diff).toFixed(2)}`;
@@ -2674,9 +2674,9 @@ async function runChartAnalysis() {
             labels: labels60,
             datasets: [{
               data: closes60,
-              borderColor: d.trend === '상승' ? '#3fb950' : d.trend === '하락' ? '#f85149' : '#58a6ff',
+              borderColor: d.trend === '상승' ? '#f85149' : d.trend === '하락' ? '#58a6ff' : '#8b949e',
               borderWidth: 1.5, fill: true,
-              backgroundColor: d.trend === '상승' ? 'rgba(63,185,80,.08)' : d.trend === '하락' ? 'rgba(248,81,73,.08)' : 'rgba(88,166,255,.06)',
+              backgroundColor: d.trend === '상승' ? 'rgba(248,81,73,.08)' : d.trend === '하락' ? 'rgba(88,166,255,.08)' : 'rgba(139,148,158,.06)',
               pointRadius: 0, tension: 0.3,
             }],
           },

@@ -10,6 +10,7 @@
   --accent: #58a6ff;
   --green: #3fb950;
   --red: #f85149;
+  --blue: #58a6ff;   /* 주가 하락 표시 (한국식: 상승=빨강, 하락=파랑) */
   --gold: #d29922;
   --orange: #e3892c;
   --nav-w: 68px;
@@ -223,8 +224,8 @@ body {
 .price-area { text-align: right; }
 .price { font-size: 26px; font-weight: 700; }
 .change { font-size: 14px; margin-top: 2px; }
-.change.up   { color: var(--green); }
-.change.down { color: var(--red); }
+.change.up   { color: var(--red); }    /* 상승 = 빨강 (한국식) */
+.change.down { color: var(--blue); }   /* 하락 = 파랑 (한국식) */
 
 .watch-add-btn {
   width: 100%;
@@ -389,8 +390,8 @@ body {
 .sc-name  { font-weight: 700; font-size: 14px; }
 .sc-code  { font-size: 11px; color: var(--muted); margin-top: 1px; }
 .sc-price { font-size: 15px; font-weight: 700; text-align: right; }
-.up   { color: var(--green); }
-.down { color: var(--red); }
+.up   { color: var(--red); }    /* 상승·수익 = 빨강 (한국식) */
+.down { color: var(--blue); }   /* 하락·손실 = 파랑 (한국식) */
 .sc-card-bottom {
   display: flex;
   flex-wrap: wrap;
@@ -913,8 +914,8 @@ body {
   border-left: 3px solid transparent;
 }
 .perf-stock:last-child { border-bottom: none; }
-.perf-stock.win  { border-left-color: var(--green); }
-.perf-stock.loss { border-left-color: var(--red); }
+.perf-stock.win  { border-left-color: var(--red); }    /* 수익 = 빨강 (한국식) */
+.perf-stock.loss { border-left-color: var(--blue); }   /* 손실 = 파랑 (한국식) */
 .perf-stock-top {
   display: flex;
   justify-content: space-between;
