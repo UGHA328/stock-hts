@@ -37,7 +37,6 @@ let screenerMarket = 'kr';
 let perMarket = 'kr';
 let watchMarket = 'kr';
 let priceChart = null;
-let volumeChart = null;
 let searchTimer = null;
 const watchlist = { us: [], kr: [] };
 
@@ -1793,75 +1792,90 @@ function updateStockHeader(q) {
 }
 
 /* ── 차트 ── */
+/* lightweight-charts (TradingView 오픈소스) — 캔들스틱 + 거래량 + 볼린저밴드 */
+let _candleSeries = null, _volSeries = null, _bbU = null, _bbM = null, _bbL = null;
+let _lastChartData = null;
+
 function initCharts() {
-  const scaleBase = {
-    x: { ticks: { color: '#8b949e', maxTicksLimit: 6 }, grid: { color: '#21262d' } },
-    y: { ticks: { color: '#8b949e' }, grid: { color: '#21262d' }, position: 'right' },
-  };
-  priceChart = new Chart(document.getElementById('priceChart'), {
-    type: 'line',
-    data: {
-      labels: [],
-      datasets: [
-        {
-          label: '종가', data: [],
-          borderColor: '#58a6ff', backgroundColor: 'rgba(88,166,255,.08)',
-          fill: false, tension: 0.3, pointRadius: 0, borderWidth: 2, order: 1,
-        },
-        {
-          label: 'BB 상단', data: [],
-          borderColor: 'rgba(255,120,80,.7)', borderDash: [5, 3],
-          borderWidth: 1, fill: false, pointRadius: 0, tension: 0, order: 2,
-        },
-        {
-          label: 'BB 중간', data: [],
-          borderColor: 'rgba(180,180,180,.5)', borderDash: [4, 3],
-          borderWidth: 1, fill: false, pointRadius: 0, tension: 0, order: 3,
-        },
-        {
-          label: 'BB 하단', data: [],
-          borderColor: 'rgba(80,200,130,.7)', borderDash: [5, 3],
-          borderWidth: 1,
-          fill: { target: 1, above: 'rgba(150,150,160,.07)' },
-          pointRadius: 0, tension: 0, order: 4,
-        },
-      ],
-    },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      plugins: {
-        legend: {
-          display: true,
-          labels: { color: '#8b949e', boxWidth: 10, font: { size: 11 }, padding: 10 },
-        },
-        tooltip: { mode: 'index', intersect: false },
-      },
-      scales: scaleBase,
-    },
+  const el = document.getElementById('priceChart');
+  if (!el || typeof LightweightCharts === 'undefined') return;
+
+  priceChart = LightweightCharts.createChart(el, {
+    autoSize: true,
+    layout: { background: { color: 'transparent' }, textColor: '#8b949e', fontSize: 11 },
+    grid: { vertLines: { color: '#21262d' }, horzLines: { color: '#21262d' } },
+    rightPriceScale: { borderColor: '#30363d' },
+    timeScale: { borderColor: '#30363d', timeVisible: false },
+    crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+    localization: { locale: 'ko-KR' },
   });
-  volumeChart = new Chart(document.getElementById('volumeChart'), {
-    type: 'bar',
-    data: { labels: [], datasets: [{ data: [], backgroundColor: 'rgba(88,166,255,.4)' }] },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { display: false } },
-      scales: { ...scaleBase, y: { ...scaleBase.y, ticks: { color: '#8b949e', callback: v => fmtVol(v) } } },
-    },
+
+  // 캔들: 한국식 — 상승=빨강, 하락=파랑
+  _candleSeries = priceChart.addCandlestickSeries({
+    upColor: '#f85149', downColor: '#58a6ff',
+    borderUpColor: '#f85149', borderDownColor: '#58a6ff',
+    wickUpColor: '#f85149', wickDownColor: '#58a6ff',
   });
+
+  // 거래량: 하단 오버레이 히스토그램
+  _volSeries = priceChart.addHistogramSeries({
+    priceScaleId: 'vol', priceFormat: { type: 'volume' },
+    lastValueVisible: false, priceLineVisible: false,
+  });
+  priceChart.priceScale('vol').applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } });
+
+  // 볼린저밴드
+  const lineOpts = c => ({
+    color: c, lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed,
+    priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false,
+  });
+  _bbU = priceChart.addLineSeries(lineOpts('rgba(255,120,80,.7)'));
+  _bbM = priceChart.addLineSeries(lineOpts('rgba(180,180,180,.5)'));
+  _bbL = priceChart.addLineSeries(lineOpts('rgba(80,200,130,.7)'));
+}
+
+function _chartTimes(d) {
+  // ISO 날짜 우선, 없으면 M/D에서 연도 추정 (월이 줄어들면 해 넘김)
+  if (d.dates_iso && d.dates_iso.length === d.dates.length) return d.dates_iso;
+  const out = [];
+  let year = new Date().getFullYear();
+  let prevM = null;
+  const months = d.dates.map(s => parseInt(String(s).split('/')[0]) || 1);
+  // 끝(최신)이 올해라고 가정하고 뒤에서 앞으로 연도 계산
+  const years = new Array(d.dates.length);
+  for (let i = d.dates.length - 1; i >= 0; i--) {
+    if (prevM !== null && months[i] > prevM) year -= 1;
+    years[i] = year; prevM = months[i];
+  }
+  for (let i = 0; i < d.dates.length; i++) {
+    const [m, dd] = String(d.dates[i]).split('/').map(Number);
+    out.push(`${years[i]}-${String(m).padStart(2,'0')}-${String(dd||1).padStart(2,'0')}`);
+  }
+  return out;
 }
 
 function updateCharts(d) {
-  if (!d) return;
+  if (!d || !priceChart || !_candleSeries) return;
+  _lastChartData = d;
+  const times = _chartTimes(d);
+  const candles = [], vols = [];
+  for (let i = 0; i < (d.close || []).length; i++) {
+    const c = d.close[i], t = times[i];
+    if (!t || c == null) continue;
+    const o = d.open?.[i] || c, h = d.high?.[i] || c, l = d.low?.[i] || c;
+    candles.push({ time: t, open: o, high: Math.max(h, o, c), low: Math.min(l, o, c), close: c });
+    vols.push({ time: t, value: d.volume?.[i] || 0,
+                color: c >= o ? 'rgba(248,81,73,.35)' : 'rgba(88,166,255,.35)' });
+  }
+  _candleSeries.setData(candles);
+  _volSeries.setData(vols);
+
   const bb = calcBBSeries(d.close || []);
-  priceChart.data.labels = d.dates;
-  priceChart.data.datasets[0].data = d.close;
-  priceChart.data.datasets[1].data = bb.upper;
-  priceChart.data.datasets[2].data = bb.mid;
-  priceChart.data.datasets[3].data = bb.lower;
-  priceChart.update();
-  volumeChart.data.labels = d.dates;
-  volumeChart.data.datasets[0].data = d.volume;
-  volumeChart.update();
+  const line = arr => arr.map((v, i) => v == null ? null : ({ time: times[i], value: v })).filter(Boolean);
+  _bbU.setData(line(bb.upper));
+  _bbM.setData(line(bb.mid));
+  _bbL.setData(line(bb.lower));
+  priceChart.timeScale().fitContent();
 }
 
 /* ── 관심종목 ── */
@@ -2659,13 +2673,12 @@ async function runChartAnalysis() {
 
       <div class="ai-disclaimer" style="margin-top:12px">⚠ 본 분석은 기술적 지표 기반 참고용이며 투자 권유가 아닙니다.</div>`;
 
-    // 미니 차트 렌더링 (기존 priceChart 데이터 재활용)
+    // 미니 차트 렌더링 (기존 차트 데이터 재활용)
     try {
       const miniCanvas = document.getElementById('chartAnalysisMini');
-      if (miniCanvas && priceChart?.data?.labels?.length) {
-        const last60 = n => priceChart.data.datasets[0].data.slice(-n);
-        const labels60 = priceChart.data.labels.slice(-60);
-        const closes60 = last60(60);
+      if (miniCanvas && _lastChartData?.close?.length) {
+        const labels60 = (_lastChartData.dates || []).slice(-60);
+        const closes60 = _lastChartData.close.slice(-60);
         const minP = Math.min(...closes60.filter(v=>v!=null));
         const maxP = Math.max(...closes60.filter(v=>v!=null));
         new Chart(miniCanvas, {
