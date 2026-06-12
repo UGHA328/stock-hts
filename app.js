@@ -1698,12 +1698,15 @@ function switchMarket(market) {
 }
 
 /* ── 검색 ── */
+let _searchSeq = 0;
 async function doSearch(q) {
+  const seq = ++_searchSeq;
   const box = document.getElementById('searchResults');
   box.innerHTML = '<div class="search-item"><div class="si-name">검색 중...</div></div>';
   box.classList.remove('hidden');
   try {
     const items = await fetchSearch(q);
+    if (seq !== _searchSeq) return;   // 이미 새 검색어가 입력됨 — 늦게 온 응답 무시
     if (!items.length) {
       box.innerHTML = '<div class="search-item"><div class="si-name">결과 없음</div></div>';
       return;
@@ -1723,6 +1726,7 @@ async function doSearch(q) {
       });
     });
   } catch (e) {
+    if (seq !== _searchSeq) return;
     box.innerHTML = `<div class="search-item"><div class="si-name">오류: ${escHtml(e.message)}</div></div>`;
   }
 }
