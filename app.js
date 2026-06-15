@@ -1303,42 +1303,44 @@ async function screenOne(symbol) {
     const high52  = is52WkHigh(highs);
     const bb      = calcBB(closes);
 
-    // ── 스크리너 v2.0 (2026-06-10, 백테스트 기반 개선) ──────
-    // 변경 이력: D:\stock_app\SCREENER_CHANGELOG.md 참조
+    // ── 스크리너 v3 (모멘텀 중심, 2년 백테스트 검증) ──────
+    // 추세·신고가가 실제 예측력 핵심. 거래량 급등·BB 단순돌파·MACD 상향은
+    // 백테스트에서 예측력이 약해(일부는 음(-) 수익) 비중 축소·제거.
+    // 검증: KR T+5 적중 32%→42%(평균 +1.9%→+3.2%), 미국 변동성유니버스 고점수 적중 40%+
     let score = 0;
     const signals = [];
+    const hi = highs.length ? Math.max(...highs) : 0;
+    const highPct = hi > 0 ? (price / hi * 100) : 0;   // 6개월 고점 대비 위치
 
-    // 거래량: 5배+ 추가, 1.5배 제거 (백테스트: 1.5배는 노이즈)
-    if (vr >= 5)        { score += 4; signals.push(`거래량 ${vr.toFixed(1)}x`); }
-    else if (vr >= 3)   { score += 2; signals.push(`거래량 ${vr.toFixed(1)}x`); }
-    else if (vr >= 2)   { score += 1; signals.push(`거래량 ${vr.toFixed(1)}x`); }
-    // 1.5배 미만: 0점 (노이즈)
-
-    // RSI: 50~65로 하향 (백테스트: 과매수 구간 제거)
-    // 75초과는 0점 (이미 과매수)
-    if (rsi !== null) {
-      if (rsi >= 50 && rsi <= 65) { score += 2; signals.push(`RSI ${rsi.toFixed(0)}`); }
-      else if (rsi > 65 && rsi <= 75) { score += 1; signals.push(`RSI ${rsi.toFixed(0)}`); }
-      // rsi > 75: 0점 (과매수, 오히려 위험)
+    // ① 추세 (예측력 최상위)
+    if (ma5 && ma20 && ma60 && price > ma5 && ma5 > ma20 && ma20 > ma60) {
+      score += 3; signals.push('정배열');
+    } else if (ma20 && ma60 && price > ma20 && ma20 > ma60) {
+      score += 1; signals.push('상승추세');
     }
 
-    if (macd.golden)      { score += 3; signals.push('골든크로스'); }
-    else if (macd.bullish) { score += 1; signals.push('MACD 강세'); }
+    // ② 신고가 모멘텀
+    if (highPct >= 98)      { score += 3; signals.push('신고가'); }
+    else if (highPct >= 92) { score += 2; signals.push('신고가 근접'); }
+    else if (highPct >= 85) { score += 1; signals.push('고가권'); }
 
-    if (ma5 && ma20 && ma60 && ma5 > ma20 && ma20 > ma60) { score += 2; signals.push('정배열'); }
+    // ③ 거래량 동반 (1.5~3배 이상적, 과도 스파이크는 클라이맥스 의심)
+    if (vr >= 1.5 && vr <= 3.0) { score += 2; signals.push(`거래량 ${vr.toFixed(1)}x`); }
+    else if (vr > 3.0)          { score += 1; signals.push(`거래량 ${vr.toFixed(1)}x`); }
 
-    if (high52) { score += 2; signals.push('52주 신고가'); }
+    // ④ RSI 건강한 강세 구간만
+    if (rsi !== null && rsi >= 55 && rsi <= 72) { score += 1; signals.push(`RSI ${rsi.toFixed(0)}`); }
 
-    // BB: 수축 후 돌파만 인정 (단순 상단 돌파는 역효과)
-    if (bb.above && bb.squeeze)  { score += 3; signals.push('BB 수축돌파'); }  // 강력
-    else if (bb.squeeze)          { score += 1; signals.push('BB 수축'); }       // 준비
-    // bb.above 단독: 0점 (평균회귀 위험)
+    // ⑤ MACD 골든크로스만 (강세/상향은 예측력 없어 제외)
+    if (macd.golden) { score += 1; signals.push('골든크로스'); }
 
-    if (chgPct >= 3)     score += 2;
-    else if (chgPct >= 1) score += 1;
+    // ⑥ 거래량 동반 BB 상단 돌파만 (단순 돌파·스퀴즈는 예측 실패로 제거)
+    if (bb.above && vr >= 1.5) { score += 1; signals.push('거래량+BB돌파'); }
 
-    // 최소 점수 4→7 상향 (백테스트: 7점 미만 승률 47% 이하)
-    if (score < 7) return null;
+    // 시장별 임계값 — 미국 변동성 유니버스는 신호 노이즈가 많아 더 엄격하게
+    const isKrSym = /\.(KS|KQ)$/.test(symbol);
+    const minScore = isKrSym ? 6 : 7;
+    if (score < minScore) return null;
 
     const ticker = symbol.replace(/\.(KS|KQ)$/, '');
     const krEntry = KR_STOCKS.find(s => s.code === ticker);
