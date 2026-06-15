@@ -1789,6 +1789,7 @@ async function selectStock(code, name) {
   document.getElementById('stockPrice').textContent = '조회 중...';
   document.getElementById('stockChange').textContent = '';
   ['mOpen','mHigh','mLow','mVolume'].forEach(id => document.getElementById(id).textContent = '-');
+  _resetAiScore();   // 종목 바뀌면 종합점수 초기화
 
   try {
     const [q, c] = await Promise.all([fetchQuote(code), fetchChart(code)]);
@@ -2356,6 +2357,83 @@ async function runAiDart() {
 
   } catch (e) {
     document.getElementById('aiModalContent').innerHTML = `<p style="color:var(--red)">오류: ${escHtml(e.message)}</p>`;
+  }
+}
+
+/* ── AI 종합 매수점수 ── */
+const _scoreColor = (n) => n >= 75 ? '#3fb950' : n >= 60 ? '#7bc043'
+  : n >= 45 ? '#d29922' : n >= 30 ? '#e3892c' : '#f85149';
+const _DIM_LABELS = { valuation: '밸류에이션', technical: '기술적', financial: '재무·실적',
+                      sentiment: '뉴스·심리', consensus: '시장기대' };
+
+function _resetAiScore() {
+  const empty = document.getElementById('aiScoreEmpty');
+  const res   = document.getElementById('aiScoreResult');
+  if (empty) empty.classList.remove('hidden');
+  if (res)  { res.classList.add('hidden'); res.innerHTML = ''; }
+  const btn = document.getElementById('btnAiScore');
+  if (btn) { btn.disabled = false; btn.textContent = '🎯 AI 종합 매수점수 분석'; }
+}
+
+async function runAiScore() {
+  if (!currentSymbol) return;
+  const name = document.getElementById('stockName').textContent;
+  const btn  = document.getElementById('btnAiScore');
+  const res  = document.getElementById('aiScoreResult');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ 종합 분석 중... (15~30초)'; }
+  const fundamentals = {
+    per: document.getElementById('mPer')?.textContent, fpe: document.getElementById('mFpe')?.textContent,
+    pbr: document.getElementById('mPbr')?.textContent, eps: document.getElementById('mEps')?.textContent,
+    roe: document.getElementById('mRoe')?.textContent, dividend: document.getElementById('mDiv')?.textContent,
+    market_cap: document.getElementById('mMcap')?.textContent,
+  };
+  try {
+    const d = await fetch(SERVER + '/ai/score', {
+      method: 'POST', headers: { ...HDR, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ symbol: currentSymbol, name, market: currentMarket, fundamentals }),
+    }).then(r => r.json());
+
+    if (d.error || d.total_score == null) {
+      _resetAiScore();
+      alert('종합점수 분석 실패: ' + (d.error || d.raw || '응답 오류'));
+      return;
+    }
+
+    const total = Math.round(d.total_score);
+    const col   = _scoreColor(total);
+    const dims  = d.dimensions || {};
+    const provider = d._ai_provider ? `<span class="ai-provider-badge ${/gemini/i.test(d._ai_provider)?'gemini':'groq'}" style="margin:0">${/gemini/i.test(d._ai_provider)?'✦ Gemini':'⚡ Groq'}</span>` : '';
+
+    const dimRows = Object.keys(_DIM_LABELS).map(k => {
+      const o = dims[k] || {}; const n = Math.round(o.score || 0);
+      return `<div class="ai-score-dim">
+          <span class="d-name">${_DIM_LABELS[k]}</span>
+          <span class="d-bar-wrap"><span class="d-bar" style="width:${n}%;background:${_scoreColor(n)}"></span></span>
+          <span class="d-val" style="color:${_scoreColor(n)}">${n}</span>
+        </div>
+        ${o.comment ? `<div class="ai-score-dim-comment">${escHtml(o.comment)}</div>` : ''}`;
+    }).join('');
+
+    res.innerHTML = `
+      <div class="ai-score-head">
+        <div class="ai-score-gauge" style="background:conic-gradient(${col} ${total*3.6}deg, var(--surface) 0)">
+          <div style="width:72px;height:72px;border-radius:50%;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center">
+            <span class="g-num" style="color:${col}">${total}</span><span class="g-of">/ 100</span>
+          </div>
+        </div>
+        <div class="ai-score-verdict">
+          <div class="ai-score-reco" style="color:${col}">${escHtml(d.recommendation || '-')}</div>
+          <div class="ai-score-summary">${escHtml(d.summary || '')}</div>
+        </div>
+      </div>
+      <div class="ai-score-dims">${dimRows}</div>
+      <div class="ai-score-foot">${provider} · 뉴스·전자공시·밸류에이션·차트·컨센서스 종합 · ⚠ 참고용, 투자 권유 아님</div>`;
+
+    document.getElementById('aiScoreEmpty').classList.add('hidden');
+    res.classList.remove('hidden');
+  } catch (e) {
+    _resetAiScore();
+    alert('종합점수 분석 오류: ' + e.message);
   }
 }
 
@@ -3053,6 +3131,7 @@ document.getElementById('btnChart').addEventListener('click', runChartAnalysis);
 document.getElementById('btnLegends').addEventListener('click', runLegendAnalysis);
 document.getElementById('btnNotebookLM').addEventListener('click', runNotebookLM);
 document.getElementById('btnAiChat').addEventListener('click', openAiChat);
+document.getElementById('btnAiScore').addEventListener('click', runAiScore);
 
 document.getElementById('fortuneRunBtn').addEventListener('click', runFortune);
 

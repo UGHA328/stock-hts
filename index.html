@@ -111,6 +111,14 @@
             <button class="ai-btn" id="btnNotebookLM" style="background:rgba(66,133,244,.12);color:#4285f4;border-color:rgba(66,133,244,.3)">📒 노트북LM</button>
             <button class="ai-btn" id="btnAiChat" style="background:rgba(139,92,246,.12);color:#a78bfa;border-color:rgba(139,92,246,.3)">💬 AI Chat</button>
           </div>
+          <!-- AI 종합 매수점수 -->
+          <div id="aiScoreCard" class="ai-score-card">
+            <div id="aiScoreEmpty" class="ai-score-empty">
+              <button id="btnAiScore" class="ai-score-run">🎯 AI 종합 매수점수 분석</button>
+              <div class="ai-score-hint">뉴스·전자공시·밸류에이션·차트·대가 관점을 종합해 0~100점으로 평가</div>
+            </div>
+            <div id="aiScoreResult" class="hidden"></div>
+          </div>
           <div class="metrics">
             <div class="metric-card"><div class="label">시가</div><div id="mOpen" class="value">-</div></div>
             <div class="metric-card"><div class="label">고가</div><div id="mHigh" class="value">-</div></div>
@@ -365,6 +373,6 @@
   </div>
 </div>
 
-<script src="./app.js?v=43"></script>
+<script src="./app.js?v=44"></script>
 </body>
 </html>
