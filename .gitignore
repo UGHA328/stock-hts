@@ -1,0 +1,6 @@
+# 이 폴더(web-app)는 GitHub Pages로 공개됩니다. 비밀키가 절대 들어오면 안 됩니다.
+.env
+.env.*
+*.key
+secrets.js
+config.local.js
