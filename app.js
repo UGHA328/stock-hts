@@ -126,6 +126,19 @@ const US_NAMES = {
   'MS':'Morgan Stanley','BLK':'BlackRock','AXP':'American Express','NOW':'ServiceNow','BSX':'Boston Scientific',
   'SCHW':'Charles Schwab','ZTS':'Zoetis','PANW':'Palo Alto Networks','ETN':'Eaton','SO':'Southern Company',
   'HCA':'HCA Healthcare','LRCX':'Lam Research','KLAC':'KLA Corp','MU':'Micron','QCOM':'Qualcomm',
+  // ── 고변동·중소형·고베타 (2026-06 추가) ──
+  'IONQ':'IonQ','RGTI':'Rigetti','QBTS':'D-Wave Quantum','ALAB':'Astera Labs','CRDO':'Credo',
+  'WOLF':'Wolfspeed','AEHR':'Aehr Test','ON':'ON Semiconductor','MRVL':'Marvell',
+  'OKLO':'Oklo','SMR':'NuScale Power','NNE':'Nano Nuclear','BE':'Bloom Energy','ENPH':'Enphase','PLUG':'Plug Power',
+  'RKLB':'Rocket Lab','ASTS':'AST SpaceMobile','LUNR':'Intuitive Machines','ACHR':'Archer Aviation',
+  'MARA':'MARA Holdings','RIOT':'Riot Platforms','CLSK':'CleanSpark','HUT':'Hut 8',
+  'CELH':'Celsius','CAVA':'CAVA Group','DUOL':'Duolingo','RBLX':'Roblox','DKNG':'DraftKings',
+  'RDDT':'Reddit','APP':'AppLovin','CVNA':'Carvana',
+  'AFRM':'Affirm','UPST':'Upstart','NU':'Nu Holdings','SOFI':'SoFi',
+  'VKTX':'Viking Therapeutics','CRSP':'CRISPR Therapeutics','HIMS':'Hims & Hers','MRNA':'Moderna',
+  'BABA':'Alibaba','PDD':'PDD Holdings','JD':'JD.com','LI':'Li Auto','XPEV':'XPeng','NIO':'NIO',
+  'GME':'GameStop','LCID':'Lucid','SNAP':'Snap',
+  'PLTR':'Palantir','HOOD':'Robinhood','COIN':'Coinbase','MSTR':'MicroStrategy','SMCI':'Super Micro',
 };
 
 /* ── 스크리너 종목 목록 ── */
@@ -135,7 +148,18 @@ const US_SCREEN_LIST = [
   'ABBV','BAC','KO','MRK','CVX','NFLX','AMD','PEP','TMO','ADBE',
   'CRM','ACN','MCD','ABT','WFC','PM','TXN','NEE','ISRG','IBM',
   'CAT','AMGN','INTU','GS','SPGI','MS','BLK','AXP','NOW','BSX',
-  'SCHW','ZTS','PANW','ETN','SO','HCA','LRCX','KLAC','MU','QCOM'
+  'SCHW','ZTS','PANW','ETN','SO','HCA','LRCX','KLAC','MU','QCOM',
+  // ── 고변동·중소형·고베타 (급등 후보군 확대) ──
+  'IONQ','RGTI','QBTS','ALAB','CRDO','WOLF','AEHR','ON','MRVL',
+  'OKLO','SMR','NNE','BE','ENPH','PLUG',
+  'RKLB','ASTS','LUNR','ACHR',
+  'MARA','RIOT','CLSK','HUT',
+  'CELH','CAVA','DUOL','RBLX','DKNG','RDDT','APP','CVNA',
+  'AFRM','UPST','NU','SOFI',
+  'VKTX','CRSP','HIMS','MRNA',
+  'BABA','PDD','JD','LI','XPEV','NIO',
+  'GME','LCID','SNAP',
+  'PLTR','HOOD','COIN','MSTR','SMCI'
 ];
 
 const KR_SCREEN_LIST = [
