@@ -420,12 +420,13 @@ async function revScreenOne(symbol) {
     const lows    = clean(data.low);
     if (closes.length < 40) return null;
 
-    // 거래대금 하한 (품절주·잡주 제거 — 20일 중앙값 기준: 이벤트성 급증에 안 휘둘림)
-    if (!_liquidEnough(symbol, closes, volumes, price)) return null;
-
     const highs2 = (data.high || []).map(v => v ?? null);
     const price  = closes[closes.length - 1];
     const prev   = closes[closes.length - 2] || price;
+
+    // 거래대금 하한 (품절주·잡주 제거 — 20일 중앙값 기준: 이벤트성 급증에 안 휘둘림)
+    if (!_liquidEnough(symbol, closes, volumes, price)) return null;
+
     const chgPct = prev ? ((price - prev) / prev * 100) : 0;
     const vr     = volRatio(volumes);
 
