@@ -1372,8 +1372,13 @@ async function screenOne(symbol) {
     if (vr >= 1.5 && vr <= 3.0) { score += 2; signals.push(`거래량 ${vr.toFixed(1)}x`); }
     else if (vr > 3.0)          { score += 1; signals.push(`거래량 ${vr.toFixed(1)}x`); }
 
-    // ④ RSI 건강한 강세 구간만
-    if (rsi !== null && rsi >= 55 && rsi <= 72) { score += 1; signals.push(`RSI ${rsi.toFixed(0)}`); }
+    // ④ RSI — 건강한 강세 + 강한 추세(72~80)까지 인정 (백테스트: 고RSI 모멘텀 지속).
+    //    80 초과만 가점 제외(극단 과열). RSI 라벨에 '강세' 표기로 위험도 가시화.
+    if (rsi !== null && rsi >= 55) {
+      if (rsi <= 72)      { score += 1; signals.push(`RSI ${rsi.toFixed(0)}`); }
+      else if (rsi <= 80) { score += 1; signals.push(`RSI ${rsi.toFixed(0)} 강세`); }
+      // rsi > 80: 가점 없음 (추격 위험)
+    }
 
     // ⑤ MACD 골든크로스만 (강세/상향은 예측력 없어 제외)
     if (macd.golden) { score += 1; signals.push('골든크로스'); }
@@ -1995,6 +2000,7 @@ async function renderWatchlist() {
             : `<button class="wl-set-entry" data-code="${item.code}" data-market="${watchMarket}" title="매수가 설정 시 카카오 알림 활성화">💰 매수가 입력</button>`}
           <span id="wl-pnl-${item.code}" style="font-size:12px"></span>
         </div>
+        <div id="wl-risk-${item.code}" class="wl-risk"></div>
         ${hasEntry ? `
         <div style="display:flex;gap:6px;margin-top:5px">
           <button class="wl-set-entry" data-code="${item.code}" data-market="${watchMarket}" style="font-size:11px">✏️ 수정</button>
@@ -2079,9 +2085,27 @@ async function renderWatchlist() {
     }
   };
 
-  // 동시에 최대 5개씩 조회
+  // 실패 신호 점검 (급등 후보 사후 모니터링)
+  const fetchRisk = async (item) => {
+    const el = document.getElementById(`wl-risk-${item.code}`);
+    if (!el) return;
+    try {
+      const ep = Number(item.entryPrice) || '';
+      const q = `symbol=${encodeURIComponent(item.code)}&market=${watchMarket}${ep ? '&entry=' + ep : ''}`;
+      const r = await fetch(`${SERVER}/api/risk?${q}`, { headers: HDR }).then(r => r.json());
+      const flags = (r.flags || []);
+      if (!flags.length) return;
+      el.innerHTML = flags.map(f =>
+        `<span class="wl-risk-flag ${f.level === 'danger' ? 'danger' : 'warn'}">${f.level === 'danger' ? '🚨' : '⚠'} ${escHtml(f.text)}</span>`
+      ).join('');
+    } catch {}
+  };
+
+  // 동시에 최대 5개씩 조회 (현재가 + 실패신호)
   for (let i = 0; i < items.length; i += 5) {
-    await Promise.all(items.slice(i, i + 5).map(fetchPrice));
+    const chunk = items.slice(i, i + 5);
+    await Promise.all(chunk.map(fetchPrice));
+    Promise.all(chunk.map(fetchRisk));   // 실패신호는 논블로킹 (느려도 가격 표시 막지 않음)
   }
 }
 
