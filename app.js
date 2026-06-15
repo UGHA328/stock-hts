@@ -393,12 +393,16 @@ function calcMACDHistogram(closes) {
   return { improving: h[2] < 0 && h[2] > h[1] && h[1] > h[0] };
 }
 
-// 반전 매도 플랜 (급등주보다 넉넉하게)
+// 반전 매도 플랜 (2년 MFE/MAE 백테스트 기반)
+// - 목표가: 진입 후 최대상승(MFE) 중앙값 ~+7%. 점수는 반등폭 예측력 거의 없어(7~8점 오히려 부진)
+//   상위 점수(9+, 실제로 더 큼)만 +13%, 그 외 +8%로 현실화.
+// - 손절: 변동성(ATR) 기반 1.7배, 4~8% 범위 (소형주 노이즈 손절 방지). MAE 중앙값(~-5%)과 정합.
 function calcRevExitPlan(item) {
-  let targetPct, stopPct, holdDays, holdDaysNum;
-  if (item.score >= 10)     { targetPct = 25; stopPct = 7; holdDays = '최대 20거래일'; holdDaysNum = 20; }
-  else if (item.score >= 7) { targetPct = 15; stopPct = 7; holdDays = '최대 15거래일'; holdDaysNum = 15; }
-  else                       { targetPct = 10; stopPct = 7; holdDays = '최대 10거래일'; holdDaysNum = 10; }
+  const atr = Number(item.atr) || 4;
+  const stopPct  = Math.round(Math.min(8, Math.max(4, atr * 1.7)) * 10) / 10;
+  const targetPct = item.score >= 9 ? 13 : 8;
+  const holdDaysNum = 15;
+  const holdDays = '최대 15거래일 · 트레일링 권장';
   const p = item.price;
   return {
     targetPct, stopPct, holdDays, holdDaysNum,
@@ -524,6 +528,20 @@ async function revScreenOne(symbol) {
     const crossConfirm = catPrice && (catVol || catMom);   // 같은 계열 중복만으론 통과 불가
     if (!trigger || !crossConfirm || score < minScore) return null;
 
+    // ATR(14) % — 변동성 기반 손절폭 산정용
+    let atrPct = null;
+    if (highs2.length >= 15 && lows.length >= 15 && closes.length >= 15) {
+      let trSum = 0, cnt = 0;
+      for (let k = closes.length - 14; k < closes.length; k++) {
+        const tr = Math.max(
+          (highs2[k] ?? 0) - (lows[k] ?? 0),
+          Math.abs((highs2[k] ?? 0) - (closes[k-1] ?? 0)),
+          Math.abs((lows[k] ?? 0) - (closes[k-1] ?? 0)));
+        if (isFinite(tr) && tr > 0) { trSum += tr; cnt++; }
+      }
+      if (cnt) atrPct = (trSum / cnt) / price * 100;
+    }
+
     const ticker  = symbol.replace(/\.(KS|KQ)$/, '');
     const krEntry = KR_STOCKS.find(s => s.code === ticker);
     return {
@@ -534,6 +552,7 @@ async function revScreenOne(symbol) {
       rsi:        parseFloat(rsi.toFixed(1)),
       vol_ratio:  parseFloat(vr.toFixed(1)),
       score:      parseFloat(score.toFixed(1)),
+      atr:        atrPct ? parseFloat(atrPct.toFixed(2)) : null,
       signals,
     };
   } catch { return null; }
