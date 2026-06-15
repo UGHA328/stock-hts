@@ -416,6 +416,16 @@ async function revScreenOne(symbol) {
     const lows    = clean(data.low);
     if (closes.length < 40) return null;
 
+    // 거래대금 하한 (품절주·잡주 제거 — 급등주와 동일 기준)
+    {
+      const _isKr = /\.(KS|KQ)$/.test(symbol);
+      let dvSum = 0, dvCnt = 0;
+      for (let i = Math.max(0, closes.length - 20); i < closes.length; i++) {
+        dvSum += (closes[i] || 0) * (volumes[i] || 0); dvCnt++;
+      }
+      if ((dvCnt ? dvSum / dvCnt : 0) < (_isKr ? 3e9 : 3e6)) return null;
+    }
+
     const price  = closes[closes.length - 1];
     const prev   = closes[closes.length - 2] || price;
     const chgPct = prev ? ((price - prev) / prev * 100) : 0;
@@ -1322,6 +1332,20 @@ async function screenOne(symbol) {
     const vr      = volRatio(volumes);
     const high52  = is52WkHigh(highs);
     const bb      = calcBB(closes);
+
+    // ── 거래대금 하한 필터 (품절주·잡주 노이즈 제거) ──
+    // 상대 거래량(1.5~3배)만으로는 평소 거래 없던 소외주가 걸릴 수 있어
+    // 최근 20일 평균 거래대금 절대 하한을 전제 조건으로 깔아둠.
+    {
+      const _isKr = /\.(KS|KQ)$/.test(symbol);
+      let dvSum = 0, dvCnt = 0;
+      for (let i = Math.max(0, closes.length - 20); i < closes.length; i++) {
+        dvSum += (closes[i] || 0) * (volumes[i] || 0); dvCnt++;
+      }
+      const avgDV = dvCnt ? dvSum / dvCnt : 0;
+      const minDV = _isKr ? 3e9 : 3e6;   // 한국 30억원 / 미국 $3M
+      if (avgDV < minDV) return null;
+    }
 
     // ── 스크리너 v3 (모멘텀 중심, 2년 백테스트 검증) ──────
     // 추세·신고가가 실제 예측력 핵심. 거래량 급등·BB 단순돌파·MACD 상향은
