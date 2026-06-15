@@ -2300,6 +2300,10 @@ async function runAiDart() {
         ${lq.operating_profit ? `<div class="ai-metric"><span>영업이익</span><strong>${escHtml(lq.operating_profit)}</strong>${prevBadge(lq.operating_profit, lq.op_prev||lq.op_yoy)}</div>` : ''}
         ${lq.net_profit ? `<div class="ai-metric"><span>순이익</span><strong>${escHtml(lq.net_profit)}</strong></div>` : ''}
         ${lq.op_margin ? `<div class="ai-metric"><span>영업이익률</span><strong>${escHtml(lq.op_margin)}</strong></div>` : ''}
+        ${lq.total_assets && lq.total_assets !== '-' ? `<div class="ai-metric"><span>자산총계</span><strong>${escHtml(lq.total_assets)}</strong></div>` : ''}
+        ${lq.total_liabilities && lq.total_liabilities !== '-' ? `<div class="ai-metric"><span>부채총계</span><strong>${escHtml(lq.total_liabilities)}</strong></div>` : ''}
+        ${lq.total_equity && lq.total_equity !== '-' ? `<div class="ai-metric"><span>자본총계</span><strong>${escHtml(lq.total_equity)}</strong></div>` : ''}
+        ${lq.debt_ratio && lq.debt_ratio !== '-' ? `<div class="ai-metric"><span>부채비율</span><strong>${escHtml(lq.debt_ratio)}</strong></div>` : ''}
       </div>
       ${lqHighlights ? `<ul class="ai-list">${lqHighlights}</ul>` : ''}
       ${lq.guidance ? `<div class="ai-impact" style="border-left-color:var(--gold)">📢 가이던스: ${escHtml(lq.guidance)}</div>` : ''}
@@ -2310,6 +2314,10 @@ async function runAiDart() {
         ${ar.operating_profit ? `<div class="ai-metric"><span>영업이익</span><strong>${escHtml(ar.operating_profit)}</strong></div>` : ''}
         ${ar.net_profit ? `<div class="ai-metric"><span>당기순이익</span><strong>${escHtml(ar.net_profit)}</strong></div>` : ''}
         ${ar.op_margin ? `<div class="ai-metric"><span>영업이익률</span><strong>${escHtml(ar.op_margin)}</strong></div>` : ''}
+        ${ar.total_assets && ar.total_assets !== '-' ? `<div class="ai-metric"><span>자산총계</span><strong>${escHtml(ar.total_assets)}</strong></div>` : ''}
+        ${ar.total_liabilities && ar.total_liabilities !== '-' ? `<div class="ai-metric"><span>부채총계</span><strong>${escHtml(ar.total_liabilities)}</strong></div>` : ''}
+        ${ar.total_equity && ar.total_equity !== '-' ? `<div class="ai-metric"><span>자본총계</span><strong>${escHtml(ar.total_equity)}</strong></div>` : ''}
+        ${ar.debt_ratio && ar.debt_ratio !== '-' ? `<div class="ai-metric"><span>부채비율</span><strong>${escHtml(ar.debt_ratio)}</strong></div>` : ''}
       </div>
       ${keyPoints ? `<ul class="ai-list">${keyPoints}</ul>` : ''}
       ${d.business_outlook ? `<div class="ai-section-title" style="margin-top:16px">🔭 사업 전망</div><div class="ai-impact">${escHtml(d.business_outlook)}</div>` : ''}
@@ -2324,11 +2332,19 @@ async function runAiDart() {
       </div>` : ''}`;
 
     // ── 공시 데이터 기반 채팅 섹션 추가 ──
+    const _bs = (o) => {
+      const p = [];
+      if (o.total_assets && o.total_assets !== '-')      p.push(`자산총계 ${o.total_assets}`);
+      if (o.total_liabilities && o.total_liabilities !== '-') p.push(`부채총계 ${o.total_liabilities}`);
+      if (o.total_equity && o.total_equity !== '-')      p.push(`자본총계 ${o.total_equity}`);
+      if (o.debt_ratio && o.debt_ratio !== '-')          p.push(`부채비율 ${o.debt_ratio}`);
+      return p.length ? ', ' + p.join(', ') : '';
+    };
     _dartContext = [
       `종목: ${name} (${currentSymbol})`,
-      lq.period ? `최근 분기 (${lq.period}): 매출 ${lq.revenue||'N/A'}, 영업이익 ${lq.operating_profit||'N/A'}, 순이익 ${lq.net_profit||'N/A'}, 영업이익률 ${lq.op_margin||'N/A'}` : '',
+      lq.period ? `최근 분기 (${lq.period}): 매출 ${lq.revenue||'N/A'}, 영업이익 ${lq.operating_profit||'N/A'}, 순이익 ${lq.net_profit||'N/A'}, 영업이익률 ${lq.op_margin||'N/A'}${_bs(lq)}` : '',
       (lq.highlights||[]).length ? `분기 하이라이트: ${lq.highlights.join(' / ')}` : '',
-      ar.year ? `연간 (${ar.year}): 매출 ${ar.revenue||'N/A'}, 영업이익 ${ar.operating_profit||'N/A'}, 순이익 ${ar.net_profit||'N/A'}` : '',
+      ar.year ? `연간 (${ar.year}): 매출 ${ar.revenue||'N/A'}, 영업이익 ${ar.operating_profit||'N/A'}, 순이익 ${ar.net_profit||'N/A'}${_bs(ar)}` : '',
       (ar.key_points||[]).length ? `연간 핵심: ${ar.key_points.join(' / ')}` : '',
       (d.major_risks||[]).length ? `주요 위험: ${d.major_risks.join(' / ')}` : '',
       d.business_outlook ? `사업 전망: ${d.business_outlook}` : '',
