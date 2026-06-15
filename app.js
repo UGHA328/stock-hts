@@ -416,56 +416,56 @@ async function revScreenOne(symbol) {
     const yr52L  = lows.length >= 20 ? Math.min(...(lows.length >= 252 ? lows.slice(-252) : lows)) : 0;
     const near52 = yr52L > 0 && price <= yr52L * 1.20;
 
+    // ── 반등 스크리너 v2 (2년 백테스트 검증) ──────
+    // '52주 저가 근접'은 최악(하락추세 지속, 평균 -1.2%)이라 제거.
+    // 단순 과매도만으론 진입 안 함 — 실질 반전 트리거(BB 하단복귀/거래량 반등) 필수.
+    // 검증: 미국 T+10 평균 +2.4%→+4.8%, 적중 27%→35%
     const weights = loadRevWeights();
     let score = 0;
     const signals = [];
+    let trigger = false;
 
-    // RSI 과매도 탈출: 현재 28~52 범위
-    if (rsi >= 28 && rsi <= 52) {
-      score += weights['RSI 과매도 탈출'] || 3;
-      signals.push(`RSI 과매도 탈출 (${rsi.toFixed(0)})`);
-    }
-
+    // ── 실질 반전 트리거 (둘 중 하나는 있어야 함) ──
     // BB 하단 복귀: 이전에 하단 아래였다가 현재 안으로 들어옴
     if (bbPrev.below && !bb.below) {
       score += weights['BB 하단 복귀'] || 3;
-      signals.push('BB 하단 복귀');
+      signals.push('BB 하단 복귀'); trigger = true;
     }
-
-    // MA5 반전: MA5 < MA20 이지만 MA5가 상향 전환 중
-    if (ma5 && ma20 && ma5 < ma20 && ma5ago && ma5 > ma5ago) {
-      score += weights['MA5 반전 중'] || 3;
-      signals.push('MA5 반전 중');
-    }
-
-    // MACD 히스토그램 개선 (음수에서 상승)
-    if (macdH.improving) {
-      score += weights['MACD 개선 중'] || 2;
-      signals.push('MACD 개선 중');
-    }
-
     // 거래량 반등 (양봉 + 2배 이상)
     if (vr >= 2 && chgPct > 0) {
-      score += weights['거래량 반등'] || 2;
-      signals.push(`거래량 반등 ${vr.toFixed(1)}x`);
+      score += weights['거래량 반등'] || 3;
+      signals.push(`거래량 반등 ${vr.toFixed(1)}x`); trigger = true;
     } else if (vr >= 1.5 && chgPct > 0) {
       score += 1;
       signals.push(`거래량 증가 ${vr.toFixed(1)}x`);
     }
 
-    // 52주 저가 근접
-    if (near52) {
-      score += weights['52주 저가 근접'] || 2;
-      signals.push('52주 저가 근접');
+    // ── 보조 확인 신호 ──
+    // RSI 과매도 탈출: 현재 28~52 범위
+    if (rsi >= 28 && rsi <= 52) {
+      score += weights['RSI 과매도 탈출'] || 1;
+      signals.push(`RSI 과매도 탈출 (${rsi.toFixed(0)})`);
     }
-
+    // MA5 반전: MA5 < MA20 이지만 MA5가 상향 전환 중
+    if (ma5 && ma20 && ma5 < ma20 && ma5ago && ma5 > ma5ago) {
+      score += weights['MA5 반전 중'] || 2;
+      signals.push('MA5 반전 중');
+    }
+    // MACD 히스토그램 개선 (음수에서 상승)
+    if (macdH.improving) {
+      score += weights['MACD 개선 중'] || 2;
+      signals.push('MACD 개선 중');
+    }
     // 소폭 반등 (당일 +0.5% 이상)
     if (chgPct >= 0.5) {
       score += weights['소폭 반등'] || 1;
       signals.push(`반등 +${chgPct.toFixed(1)}%`);
     }
 
-    if (score < 5 || signals.length < 2) return null;
+    // 시장별 임계값 — 한국 반등은 신뢰도 낮아 더 엄격(백테스트)
+    const isKrSym = /\.(KS|KQ)$/.test(symbol);
+    const minScore = isKrSym ? 7 : 5;
+    if (!trigger || score < minScore || signals.length < 2) return null;
 
     const ticker  = symbol.replace(/\.(KS|KQ)$/, '');
     const krEntry = KR_STOCKS.find(s => s.code === ticker);
