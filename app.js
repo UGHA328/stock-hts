@@ -416,28 +416,32 @@ async function revScreenOne(symbol) {
     const lows    = clean(data.low);
     if (closes.length < 40) return null;
 
-    // 거래대금 하한 (품절주·잡주 제거 — 급등주와 동일 기준)
-    {
-      const _isKr = /\.(KS|KQ)$/.test(symbol);
-      let dvSum = 0, dvCnt = 0;
-      for (let i = Math.max(0, closes.length - 20); i < closes.length; i++) {
-        dvSum += (closes[i] || 0) * (volumes[i] || 0); dvCnt++;
-      }
-      if ((dvCnt ? dvSum / dvCnt : 0) < (_isKr ? 3e9 : 3e6)) return null;
-    }
+    // 거래대금 하한 (품절주·잡주 제거 — 20일 중앙값 기준: 이벤트성 급증에 안 휘둘림)
+    if (!_liquidEnough(symbol, closes, volumes, price)) return null;
 
+    const highs2 = (data.high || []).map(v => v ?? null);
     const price  = closes[closes.length - 1];
     const prev   = closes[closes.length - 2] || price;
     const chgPct = prev ? ((price - prev) / prev * 100) : 0;
-    if (chgPct < -4) return null;  // 아직 급락 중 → 제외
+    const vr     = volRatio(volumes);
+
+    // 급락 중 제외 — 단, 긴 아래꼬리+거래량(반전 망치형)은 예외로 허용
+    // (예: 시초가 갭하락 후 장중 매수세로 저가서 크게 회복한 양봉성 캔들)
+    if (chgPct < -4) {
+      const _h = highs2[highs2.length - 1], _l = lows[lows.length - 1];
+      const _rng = (_h != null && _l != null) ? _h - _l : 0;
+      const _recov = _rng > 0 ? (price - _l) / _rng : 0;   // 당일 저가 대비 종가 회복도
+      const _hammer = _recov >= 0.6 && vr >= 1.5;          // 망치형 반전(저가서 60%+ 회복 + 거래량)
+      if (!_hammer) return null;
+    }
 
     const rsi   = calcRSI(closes);
     if (rsi === null || rsi > 55 || rsi < 20) return null;  // 과매도 회복 구간만
 
     const ma5    = calcMA(closes, 5);
     const ma20   = calcMA(closes, 20);
+    const ma60   = calcMA(closes, Math.min(60, closes.length));
     const ma5ago = calcMA(closes.slice(0, -3), 5);  // 3일 전 MA5
-    const vr     = volRatio(volumes);
     const bb     = calcBB(closes);
     const bbPrev = calcBB(closes.slice(0, -5));
     const macdH  = calcMACDHistogram(closes);
@@ -455,47 +459,70 @@ async function revScreenOne(symbol) {
     const signals = [];
     let trigger = false;
 
+    // 신호 카테고리(중복 가산 방지) — 같은 '가격 회복' 현상을 여러 지표로 중복 점수화하지 않도록
+    let catPrice = false, catVol = false, catMom = false;
+
     // ── 실질 반전 트리거 (둘 중 하나는 있어야 함) ──
-    // BB 하단 복귀: 이전에 하단 아래였다가 현재 안으로 들어옴
+    // BB 하단 복귀: 이전에 하단 아래였다가 현재 안으로 들어옴 [가격]
     if (bbPrev.below && !bb.below) {
       score += weights['BB 하단 복귀'] || 3;
-      signals.push('BB 하단 복귀'); trigger = true;
+      signals.push('BB 하단 복귀'); trigger = true; catPrice = true;
     }
-    // 거래량 반등 (양봉 + 2배 이상)
+    // 거래량 반등 (양봉 + 2배 이상) [거래량]
     if (vr >= 2 && chgPct > 0) {
       score += weights['거래량 반등'] || 3;
-      signals.push(`거래량 반등 ${vr.toFixed(1)}x`); trigger = true;
+      signals.push(`거래량 반등 ${vr.toFixed(1)}x`); trigger = true; catVol = true;
     } else if (vr >= 1.5 && chgPct > 0) {
       score += 1;
-      signals.push(`거래량 증가 ${vr.toFixed(1)}x`);
+      signals.push(`거래량 증가 ${vr.toFixed(1)}x`); catVol = true;
     }
 
     // ── 보조 확인 신호 ──
-    // RSI 과매도 탈출: 현재 28~52 범위
+    // RSI 과매도 탈출 [모멘텀]
     if (rsi >= 28 && rsi <= 52) {
       score += weights['RSI 과매도 탈출'] || 1;
-      signals.push(`RSI 과매도 탈출 (${rsi.toFixed(0)})`);
+      signals.push(`RSI 과매도 탈출 (${rsi.toFixed(0)})`); catMom = true;
     }
-    // MA5 반전: MA5 < MA20 이지만 MA5가 상향 전환 중
+    // MA5 반전 [가격]
     if (ma5 && ma20 && ma5 < ma20 && ma5ago && ma5 > ma5ago) {
       score += weights['MA5 반전 중'] || 2;
-      signals.push('MA5 반전 중');
+      signals.push('MA5 반전 중'); catPrice = true;
     }
-    // MACD 히스토그램 개선 (음수에서 상승)
+    // MACD 히스토그램 개선 [모멘텀]
     if (macdH.improving) {
       score += weights['MACD 개선 중'] || 2;
-      signals.push('MACD 개선 중');
+      signals.push('MACD 개선 중'); catMom = true;
     }
-    // 소폭 반등 (당일 +0.5% 이상)
+    // 소폭 반등 (당일 +0.5% 이상) [가격]
     if (chgPct >= 0.5) {
       score += weights['소폭 반등'] || 1;
-      signals.push(`반등 +${chgPct.toFixed(1)}%`);
+      signals.push(`반등 +${chgPct.toFixed(1)}%`); catPrice = true;
     }
 
-    // 시장별 임계값 — 한국 반등은 신뢰도 낮아 더 엄격(백테스트)
+    // ── 이평선 저항 마진 (역배열 반등은 머리 위 이평선이 저항 — 먹을 공간 평가) ──
+    const _res = [ma20, ma60].filter(m => m && m > price);
+    if (_res.length) {
+      const margin = (Math.min(..._res) - price) / price * 100;
+      if (margin < 2)       { score -= 2; signals.push('이평선 저항 임박'); }
+      else if (margin >= 7) { score += 1; signals.push('상단 공간 충분'); }
+    }
+
+    // ── 부정 필터 (추격·분산 방지) ──
+    {
+      const _h = highs2[highs2.length - 1], _l = lows[lows.length - 1];
+      const _o = (data.open || [])[(data.open || []).length - 1];
+      const _rng = (_h != null && _l != null) ? _h - _l : 0;
+      const _uw  = (_h != null) ? _h - Math.max(_o ?? price, price) : 0;
+      if (_rng > 0 && _uw / _rng > 0.6 && vr >= 2) {   // 긴 윗꼬리 + 거래량 급증 = 분산 의심
+        score -= 2; signals.push('긴 윗꼬리(-)');
+      }
+    }
+
+    // 시장별 임계값 + 카테고리 교차 확인 (가격회복 + 거래량/모멘텀 중 하나)
     const isKrSym = /\.(KS|KQ)$/.test(symbol);
     const minScore = isKrSym ? 7 : 5;
-    if (!trigger || score < minScore || signals.length < 2) return null;
+    const crossConfirm = catPrice && (catVol || catMom);   // 같은 계열 중복만으론 통과 불가
+    if (!trigger || !crossConfirm || score < minScore) return null;
 
     const ticker  = symbol.replace(/\.(KS|KQ)$/, '');
     const krEntry = KR_STOCKS.find(s => s.code === ticker);
@@ -1312,6 +1339,23 @@ function perCache(key) {
   } catch { return null; }
 }
 
+/* ── 유동성 필터 (20일 거래대금 중앙값 + 초저가 제외) ── */
+function _liquidEnough(symbol, closes, volumes, price) {
+  const isKr = /\.(KS|KQ)$/.test(symbol);
+  // 초저가주 제외 (미국: $2 미만 — 스프레드·조작 위험 / 한국: 1,000원 미만)
+  if (isKr ? price < 1000 : price < 2) return false;
+  // 최근 20일 거래대금 '중앙값' (하루 이벤트성 급증에 안 휘둘림)
+  const dv = [];
+  for (let i = Math.max(0, closes.length - 20); i < closes.length; i++) {
+    dv.push((closes[i] || 0) * (volumes[i] || 0));
+  }
+  if (!dv.length) return false;
+  dv.sort((a, b) => a - b);
+  const median = dv[Math.floor(dv.length / 2)];
+  const minDV = isKr ? 3e9 : 1e7;   // 한국 30억원 / 미국 $10M (microcap 노이즈 차단)
+  return median >= minDV;
+}
+
 /* ── 단일 종목 스크리닝 ── */
 async function screenOne(symbol) {
   try {
@@ -1333,19 +1377,8 @@ async function screenOne(symbol) {
     const high52  = is52WkHigh(highs);
     const bb      = calcBB(closes);
 
-    // ── 거래대금 하한 필터 (품절주·잡주 노이즈 제거) ──
-    // 상대 거래량(1.5~3배)만으로는 평소 거래 없던 소외주가 걸릴 수 있어
-    // 최근 20일 평균 거래대금 절대 하한을 전제 조건으로 깔아둠.
-    {
-      const _isKr = /\.(KS|KQ)$/.test(symbol);
-      let dvSum = 0, dvCnt = 0;
-      for (let i = Math.max(0, closes.length - 20); i < closes.length; i++) {
-        dvSum += (closes[i] || 0) * (volumes[i] || 0); dvCnt++;
-      }
-      const avgDV = dvCnt ? dvSum / dvCnt : 0;
-      const minDV = _isKr ? 3e9 : 3e6;   // 한국 30억원 / 미국 $3M
-      if (avgDV < minDV) return null;
-    }
+    // ── 거래대금 하한 필터 (품절주·잡주 노이즈 제거, 20일 중앙값 기준) ──
+    if (!_liquidEnough(symbol, closes, volumes, price)) return null;
 
     // ── 스크리너 v3 (모멘텀 중심, 2년 백테스트 검증) ──────
     // 추세·신고가가 실제 예측력 핵심. 거래량 급등·BB 단순돌파·MACD 상향은
