@@ -2135,9 +2135,22 @@ document.querySelectorAll('.wl-tab').forEach(btn => {
 /* ── AI 분석 (뉴스·전자공시·밸류에이션) ── */
 function openAiModal(title) {
   document.getElementById('aiModalTitle').textContent = title;
+  _setAiProvider(null);   // 새 분석 시작 — 배지 초기화
   document.getElementById('aiModalContent').innerHTML =
-    '<div class="ai-loading"><div class="spinner"></div><p>Gemini AI 분석 중...<br><small>검색 및 분석에 15~30초 소요됩니다</small></p></div>';
+    '<div class="ai-loading"><div class="spinner"></div><p>AI 분석 중...<br><small>검색 및 분석에 15~30초 소요됩니다</small></p></div>';
   document.getElementById('aiModal').classList.remove('hidden');
+}
+
+/* AI 응답 객체(d)에서 _ai_provider를 읽어 모달 헤더 배지 표시 */
+function _setAiProvider(d) {
+  const badge = document.getElementById('aiProviderBadge');
+  if (!badge) return;
+  const p = d && d._ai_provider;
+  if (!p) { badge.className = 'ai-provider-badge hidden'; badge.textContent = ''; return; }
+  const isGemini = /gemini/i.test(p);
+  badge.className = 'ai-provider-badge ' + (isGemini ? 'gemini' : 'groq');
+  badge.textContent = (isGemini ? '✦ Gemini' : '⚡ Groq');
+  badge.title = d._ai_model ? `${p} · ${d._ai_model}` : p;
 }
 function closeAiModal() {
   document.getElementById('aiModal').classList.add('hidden');
@@ -2161,6 +2174,7 @@ async function runAiNews() {
       method: 'POST', headers: { ...HDR, 'Content-Type': 'application/json' },
       body: JSON.stringify({ symbol: currentSymbol, name, market: currentMarket }),
     }).then(r => r.json());
+    _setAiProvider(d);
 
     if (d.error && !d.news) { document.getElementById('aiModalContent').innerHTML = `<p style="color:var(--red)">${escHtml(d.raw || d.error)}</p>`; return; }
 
@@ -2195,6 +2209,7 @@ async function runAiDart() {
       method: 'POST', headers: { ...HDR, 'Content-Type': 'application/json' },
       body: JSON.stringify({ symbol: currentSymbol, name, market: currentMarket }),
     }).then(r => r.json());
+    _setAiProvider(d);
 
     if (d.error && !d.annual_report && !d.latest_quarter) {
       document.getElementById('aiModalContent').innerHTML = `<p style="color:var(--red)">${escHtml(d.raw || d.error)}</p>`; return;
@@ -2300,6 +2315,7 @@ async function runAiValuation() {
       method: 'POST', headers: { ...HDR, 'Content-Type': 'application/json' },
       body: JSON.stringify({ symbol: currentSymbol, name, market: currentMarket, fundamentals }),
     }).then(r => r.json());
+    _setAiProvider(d);
 
     if (d.error && !d.scores) { document.getElementById('aiModalContent').innerHTML = `<p style="color:var(--red)">${escHtml(d.raw || d.error)}</p>`; return; }
 
@@ -2355,6 +2371,7 @@ async function runFortune() {
       method: 'POST', headers: { ...HDR, 'Content-Type': 'application/json' },
       body: JSON.stringify({ birth_date: birthDate, birth_time: birthTime, calendar_type: calType }),
     }).then(r => r.json());
+    _setAiProvider(d);
 
     load.classList.add('hidden');
     if (d.error) { result.innerHTML = `<p style="color:var(--red)">${escHtml(d.raw || d.error)}</p>`; result.classList.remove('hidden'); return; }
@@ -2595,6 +2612,7 @@ async function runChartAnalysis() {
       method: 'POST', headers: { ...HDR, 'Content-Type': 'application/json' },
       body: JSON.stringify({ symbol: currentSymbol, name, market: currentMarket }),
     }).then(r => r.json());
+    _setAiProvider(d);
 
     if (d.error) { document.getElementById('aiModalContent').innerHTML = `<p style="color:var(--red)">${escHtml(d.error)}</p>`; return; }
 
@@ -2774,6 +2792,7 @@ function _appendDartChat(name) {
       }).then(r => r.json());
 
       document.getElementById(loadId)?.remove();
+      _setAiProvider(res);
       const answer = res.answer || res.error || '응답 없음';
       _appendChatBubble(msgBox, 'assistant', answer);
       _dartChatHistory.push({ role: 'assistant', content: answer });
@@ -2872,6 +2891,7 @@ function openAiChat() {
       }).then(r => r.json());
 
       document.getElementById(loadId)?.remove();
+      _setAiProvider(res);
       const answer = res.answer || res.error || '응답 없음';
       _appendChatBubble(msgBox, 'assistant', answer);
       _chatHistory.push({ role: 'assistant', content: answer });
@@ -2923,6 +2943,7 @@ async function runLegendAnalysis() {
       method: 'POST', headers: { ...HDR, 'Content-Type': 'application/json' },
       body: JSON.stringify({ symbol: currentSymbol, name, market: currentMarket, ...fund }),
     }).then(r => r.json());
+    _setAiProvider(d);
 
     if (d.error) { document.getElementById('aiModalContent').innerHTML = `<p style="color:var(--red)">${escHtml(d.raw||d.error)}</p>`; return; }
 

@@ -265,6 +265,14 @@ body {
 .chart-wrap.tall  { height: 360px; padding: 8px; }
 #priceChart { width: 100%; height: 100%; }
 
+/* AI 엔진 표시 배지 (Gemini / Groq) */
+.ai-provider-badge {
+  font-size: 11px; font-weight: 700; padding: 2px 9px; border-radius: 999px;
+  margin-left: 8px; white-space: nowrap; align-self: center;
+}
+.ai-provider-badge.gemini { background: rgba(66,133,244,.15); color: #8ab4f8; border: 1px solid rgba(66,133,244,.35); }
+.ai-provider-badge.groq   { background: rgba(245,128,37,.15); color: #f5a05a; border: 1px solid rgba(245,128,37,.35); }
+
 /* ── 스크리너 ── */
 .mode-tabs {
   display: flex;
