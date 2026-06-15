@@ -2388,9 +2388,10 @@ async function runAiScore() {
     market_cap: document.getElementById('mMcap')?.textContent,
   };
   try {
+    const _priceNum = parseFloat((document.getElementById('stockPrice')?.textContent || '').replace(/[^0-9.]/g, '')) || null;
     const d = await fetch(SERVER + '/ai/score', {
       method: 'POST', headers: { ...HDR, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ symbol: currentSymbol, name, market: currentMarket, fundamentals }),
+      body: JSON.stringify({ symbol: currentSymbol, name, market: currentMarket, fundamentals, price: _priceNum }),
     }).then(r => r.json());
 
     if (d.error || d.total_score == null) {
@@ -2404,10 +2405,12 @@ async function runAiScore() {
     const dims  = d.dimensions || {};
     const provider = d._ai_provider ? `<span class="ai-provider-badge ${/gemini/i.test(d._ai_provider)?'gemini':'groq'}" style="margin:0">${/gemini/i.test(d._ai_provider)?'✦ Gemini':'⚡ Groq'}</span>` : '';
 
+    const w = d.weights || {};
     const dimRows = Object.keys(_DIM_LABELS).map(k => {
       const o = dims[k] || {}; const n = Math.round(o.score || 0);
+      const wtag = w[k] != null ? `<span style="font-size:10px;color:var(--muted)"> ·${w[k]}%</span>` : '';
       return `<div class="ai-score-dim">
-          <span class="d-name">${_DIM_LABELS[k]}</span>
+          <span class="d-name">${_DIM_LABELS[k]}${wtag}</span>
           <span class="d-bar-wrap"><span class="d-bar" style="width:${n}%;background:${_scoreColor(n)}"></span></span>
           <span class="d-val" style="color:${_scoreColor(n)}">${n}</span>
         </div>
@@ -2427,7 +2430,7 @@ async function runAiScore() {
         </div>
       </div>
       <div class="ai-score-dims">${dimRows}</div>
-      <div class="ai-score-foot">${provider} · 뉴스·전자공시·밸류에이션·차트·컨센서스 종합 · ⚠ 참고용, 투자 권유 아님</div>`;
+      <div class="ai-score-foot">${provider} · 항목 옆 %는 총점 가중치(기술적=백테스트 실증) · ⚠ 참고용, 투자 권유 아님</div>`;
 
     document.getElementById('aiScoreEmpty').classList.add('hidden');
     res.classList.remove('hidden');
