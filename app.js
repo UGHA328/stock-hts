@@ -288,7 +288,7 @@ const REV_DEFAULT_W   = {
   'MACD 개선 중':   2, '거래량 반등':  2, '52주 저가 근접': 2, '소폭 반등': 1,
 };
 
-let revMarket  = 'us';
+let revMarket  = 'kr';   // HTML 기본 활성 버튼(한국)과 일치시킴
 let revSubTab  = 'screener';
 let _revLastRes = [];
 
