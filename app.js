@@ -174,6 +174,26 @@ const KR_SCREEN_LIST = [
   '001680.KS','004990.KS','024110.KS','000100.KS','002790.KS'
 ];
 
+/* ── 스크리너 로직 버전 (코드에 정의 → 화면에 주입: 실제 로드된 버전 확인용) ── */
+const SCREENER_META = {
+  scDesc:  { v: 'v3.0', date: '2026-06-15',
+             desc: '모멘텀 중심 — 추세(정배열)·신고가·거래량·RSI·골든크로스. 2년 백테스트로 예측력 낮은 BB스퀴즈·MACD상향 제거. 임계값 한국 6 / 미국 7점' },
+  revDesc: { v: 'v2.0', date: '2026-06-15',
+             desc: '반전 — BB 하단 복귀·거래량 반등(필수 트리거)·MA5 반전·MACD 개선. 백테스트 최악인 "52주 저가 근접" 제거. 임계값 한국 7 / 미국 5점' },
+  perDesc: { v: 'v1.0', date: '기본',
+             desc: '포워드 PER 기준 저평가 상위 종목 (야후 파이낸스). 로직 변경 없음' },
+  divDesc: { v: 'v1.1', date: '2026-06-12',
+             desc: '배당수익률 상위 20종목 (yfinance). 배당수익률 % 계산 오류 수정(QQQ 38%→0.38% 등)' },
+};
+
+function _renderScreenerVersions() {
+  for (const [id, m] of Object.entries(SCREENER_META)) {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = `<strong style="color:var(--violet)">로직 ${m.v}</strong> `
+      + `<span style="color:var(--muted)">(${m.date} 적용)</span> · ${escHtml(m.desc)}`;
+  }
+}
+
 /* ── Flask 서버 (ngrok) ── */
 const _V = 14; // version
 const SERVER = 'https://bucked-swaddling-revenge.ngrok-free.dev';
@@ -3024,3 +3044,4 @@ document.getElementById('fortuneRunBtn').addEventListener('click', runFortune);
 loadWatchlistData();
 _refreshOwnedMap();
 initCharts();
+_renderScreenerVersions();

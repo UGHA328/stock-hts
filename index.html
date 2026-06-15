@@ -161,7 +161,7 @@
             <button id="refreshBtn" class="icon-btn">↺</button>
           </div>
         </div>
-        <p class="sc-desc">거래량·MA·RSI(50~65)·MACD·볼린저밴드·52주 신고가 종합 분석 v2.0 — 최소 7점 이상 (백테스트 개선)</p>
+        <p class="sc-desc" id="scDesc"></p>
         <div id="scLoading" class="sc-loading hidden">
           <div class="spinner"></div>
           <p>종목 스크리닝 중...<br><small>약 30~60초 소요됩니다</small></p>
@@ -183,7 +183,7 @@
             <button id="perRefreshBtn" class="icon-btn">↺</button>
           </div>
         </div>
-        <p class="sc-desc">포워드 PER 기준 저평가 종목 분석 (야후 파이낸스)</p>
+        <p class="sc-desc" id="perDesc"></p>
         <div id="perLoading" class="sc-loading hidden">
           <div class="spinner"></div>
           <p>PER 데이터 수집 중...<br><small>잠시만 기다려주세요</small></p>
@@ -228,7 +228,7 @@
               <button id="revRefreshBtn" class="icon-btn">↺</button>
             </div>
           </div>
-          <p class="sc-desc">RSI 과매도 탈출·BB 하단 복귀·MA 반전·MACD 개선 종합 분석 · 신호 가중치 자동 학습</p>
+          <p class="sc-desc" id="revDesc"></p>
           <div id="revLoading" class="sc-loading hidden">
             <div class="spinner violet-spin"></div>
             <p>반등 예상 종목 탐색 중...<br><small>약 30~60초 소요됩니다</small></p>
@@ -268,7 +268,7 @@
             <button id="divRefreshBtn" class="icon-btn">↺</button>
           </div>
         </div>
-        <p class="sc-desc">현재 주가 대비 배당수익률 상위 20종목 (yfinance 기준)</p>
+        <p class="sc-desc" id="divDesc"></p>
         <div id="divLoading" class="sc-loading hidden">
           <div class="spinner" style="border-top-color:var(--green)"></div>
           <p>고배당주 수집 중...<br><small>약 30~60초 소요됩니다</small></p>
@@ -365,6 +365,6 @@
   </div>
 </div>
 
-<script src="./app.js?v=38"></script>
+<script src="./app.js?v=39"></script>
 </body>
 </html>
