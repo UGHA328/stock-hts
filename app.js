@@ -1873,25 +1873,41 @@ async function selectStock(code, name) {
   ['mOpen','mHigh','mLow','mVolume'].forEach(id => document.getElementById(id).textContent = '-');
   _resetAiScore();   // 종목 바뀌면 종합점수 초기화
 
-  try {
-    const [q, c] = await Promise.all([fetchQuote(code), fetchChart(code)]);
-    updateStockHeader(q);
-    updateCharts(c);
-    document.getElementById('addWatchBtn').textContent = '⭐ 관심종목 추가';
-    // 목표 주가 섹션 표시 + 초기화
-    const ts = document.getElementById('targetSection');
-    if (ts) {
-      ts.style.display = '';
-      _sectorData = null;
-      document.getElementById('targetContent').innerHTML =
-        '<div style="color:var(--muted);font-size:12px">↺ 업종 분석 버튼을 클릭하세요</div>';
-      document.getElementById('customPerResult').innerHTML = '';
-      const inp = document.getElementById('customPerInput');
-      if (inp) inp.value = '';
+  // 시세·차트를 독립적으로 처리 — 하나가 실패해도 다른 하나는 표시 (전체 "오류" 방지)
+  const [qRes, cRes] = await Promise.allSettled([fetchQuote(code), fetchChart(code)]);
+
+  if (qRes.status === 'fulfilled' && qRes.value) {
+    updateStockHeader(qRes.value);
+  } else {
+    // 시세 실패 → 1회 재시도 (일시적 yfinance/네트워크 오류 대응)
+    try {
+      await new Promise(r => setTimeout(r, 600));
+      const q2 = await fetchQuote(code);
+      if (q2) updateStockHeader(q2);
+      else throw new Error('no data');
+    } catch (e) {
+      document.getElementById('stockPrice').textContent = '시세 조회 실패 (재시도 ↻)';
+      document.getElementById('stockChange').textContent = '';
+      console.error('quote 실패:', e);
     }
-  } catch (e) {
-    document.getElementById('stockPrice').textContent = '오류';
-    console.error(e);
+  }
+
+  if (cRes.status === 'fulfilled' && cRes.value) {
+    try { updateCharts(cRes.value); } catch (e) { console.error('chart 렌더 실패:', e); }
+  } else {
+    console.error('chart 조회 실패:', cRes.reason);  // 차트만 실패 — 가격/지표는 그대로 표시
+  }
+
+  document.getElementById('addWatchBtn').textContent = '⭐ 관심종목 추가';
+  const ts = document.getElementById('targetSection');
+  if (ts) {
+    ts.style.display = '';
+    _sectorData = null;
+    document.getElementById('targetContent').innerHTML =
+      '<div style="color:var(--muted);font-size:12px">↺ 업종 분석 버튼을 클릭하세요</div>';
+    document.getElementById('customPerResult').innerHTML = '';
+    const inp = document.getElementById('customPerInput');
+    if (inp) inp.value = '';
   }
 }
 
