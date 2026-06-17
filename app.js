@@ -176,11 +176,11 @@ const KR_SCREEN_LIST = [
 
 /* ── 스크리너 로직 버전 (코드에 정의 → 화면에 주입: 실제 로드된 버전 확인용) ── */
 const SCREENER_DESC_SURGE = '단기 급등 v3.0 (2026-06-15) — 추세(정배열)·신고가·거래량·RSI·골든크로스. 5~10일 보유. 임계값 한국6/미국7점';
-const SCREENER_DESC_MID   = '3개월 유망 v1.0 (2026-06-17) — 변동성·6개월 모멘텀·상승여력(고점 미접근)·장기추세. 목표 +15%/3개월. 2년 백테스트 달성률 40% · ⚠ 고변동성=손실 위험도 큼';
+const SCREENER_DESC_MID   = '3개월 유망 v1.1 (2026-06-17) — 변동성·6개월모멘텀·상승여력·장기추세 + 상대강도·매수세 품질, 초고변동(>90%)·단발급등 감점. 목표 +15%/3개월. 백테스트 달성 40%·중앙 +4.9% · ⚠ 손실 위험 큼';
 
 const SCREENER_META = {
   scDesc:  { v: 'v3.0', date: '2026-06-15', desc: SCREENER_DESC_SURGE },
-  oqDesc:  { v: 'v1.0', date: '2026-06-17', desc: SCREENER_DESC_MID },
+  oqDesc:  { v: 'v1.1', date: '2026-06-17', desc: SCREENER_DESC_MID },
   revDesc: { v: 'v2.0', date: '2026-06-15',
              desc: '반전 — BB 하단 복귀·거래량 반등(필수 트리거)·MA5 반전·MACD 개선. 백테스트 최악인 "52주 저가 근접" 제거. 임계값 한국 7 / 미국 5점' },
   perDesc: { v: 'v1.0', date: '기본',
@@ -1466,10 +1466,13 @@ async function screenOne(symbol) {
 }
 
 /* 배치 처리 (5개씩) */
-/* ── 중기 유망주 (3개월 +15% 목표) — 2년 백테스트 검증 ──
-   핵심 요인: 변동성(연율)·6개월 모멘텀·상승여력(고점 미접근)·장기추세.
-   검증: 조합점수 8+에서 3개월 +15% 달성률 32.5%→39.8%, 평균 +17%.
-   단기 급등(신고가·골든크로스)과 정반대 — 고점 근접은 오히려 감점. */
+/* ── 중기 유망주 (3개월 +15% 목표) v1.1 하이브리드 — 2년 백테스트 검증 ──
+   v1(변동성 엣지) + GPT 리스크개선: >90% 초고변동 제외, 단일급등 의존·과열 감점,
+   상대강도(시장 대비)·상승일 거래대금 품질 가점.
+   검증: 점수 8+에서 3개월 +15% 달성 ~40%, 중앙값 +4.9%(v1보다 개선), 손실폭 축소.
+   단기 급등(신고가·골든크로스)과 정반대 — 고점 근접은 감점. */
+let _oneqIdxMom6 = 0;   // 시장지수 6개월 모멘텀 (상대강도 계산용, 실행 시 1회 세팅)
+
 async function midTermScreenOne(symbol) {
   try {
     const data = await apiFetch(`/chart?symbol=${encodeURIComponent(symbol)}&range=1y&interval=1d`);
@@ -1485,26 +1488,41 @@ async function midTermScreenOne(symbol) {
     const ma200prev = n >= 220 ? avg(closes.slice(-220, -20)) : ma200;
     const mom3 = n > 63  ? (price / closes[n - 64]  - 1) * 100 : 0;
     const mom6 = n > 126 ? (price / closes[n - 127] - 1) * 100 : 0;
+    const ret5 = n > 5   ? (price / closes[n - 6]   - 1) * 100 : 0;
     const hi252 = Math.max(...closes.slice(-252));
     const highPct = hi252 ? price / hi252 * 100 : 0;
     let rets = [];
     for (let i = n - 20; i < n; i++) rets.push((closes[i] - closes[i - 1]) / closes[i - 1]);
     const m = avg(rets);
     const vol20 = Math.sqrt(avg(rets.map(r => (r - m) ** 2))) * Math.sqrt(252) * 100;
+    const max1d = Math.max(...rets) * 100;
+    const spike = mom3 > 0 ? ret5 / mom3 : 0;
+    const rs6   = mom6 - _oneqIdxMom6;
+    // 상승일 vs 하락일 거래대금 (최근 20일)
+    let upv = 0, dnv = 0;
+    for (let i = n - 20; i < n; i++) {
+      const dv = closes[i] * (volumes[i] || 0);
+      if (closes[i] > closes[i - 1]) upv += dv; else dnv += dv;
+    }
+    const updown = dnv > 0 ? upv / dnv : 2;
     const rsi = calcRSI(closes);
 
     let score = 0; const signals = [];
+    // 변동성: 40~90 스위트스폿만 가점, >90 초고변동(작전·갭)은 강한 감점
     if (vol20 >= 40 && vol20 <= 90) { score += 3; signals.push(`변동성 ${vol20.toFixed(0)}%`); }
-    else if (vol20 > 90)            { score += 1; signals.push(`변동성 ${vol20.toFixed(0)}%(과열)`); }
-    else if (vol20 >= 30)           { score += 1; }
+    else if (vol20 > 90)            { score -= 2; signals.push(`초고변동 ${vol20.toFixed(0)}%(-)`); }
     if (mom6 > 20)      { score += 3; signals.push(`6개월 +${mom6.toFixed(0)}%`); }
     else if (mom6 > 10) { score += 2; signals.push(`6개월 +${mom6.toFixed(0)}%`); }
     else if (mom6 > 0)  { score += 1; }
-    if (ma200 > ma200prev) { score += 1; signals.push('장기추세 상승'); }
+    if (price > ma200 && ma200 > ma200prev) { score += 1; signals.push('장기추세 상승'); }
     if (highPct >= 55 && highPct < 88) { score += 2; signals.push('상승여력 구간'); }
     else if (highPct >= 95)            { score -= 1; signals.push('고점 근접(-)'); }
     if (mom3 > 0)        { score += 1; }
-    if (price > ma200)  { score += 1; signals.push('MA200 위'); }
+    if (rs6 > 15)        { score += 1; signals.push('시장대비 강세'); }
+    if (updown > 1.1)    { score += 1; signals.push('매수세 우위'); }
+    // 리스크 감점 — 지속 상승 vs 단발 급등 분리
+    if (spike > 0.5)     { score -= 1; signals.push('단발급등 의존(-)'); }
+    if (max1d > 20)      { score -= 1; signals.push('급등일 존재(-)'); }
 
     if (score < 8) return null;
     const ticker  = symbol.replace(/\.(KS|KQ)$/, '');
@@ -1518,6 +1536,16 @@ async function midTermScreenOne(symbol) {
       score, signals, golden: false, macd_bull: false, _mid: true,
     };
   } catch { return null; }
+}
+
+/* 시장지수 6개월 모멘텀 세팅 (상대강도용) — 1Q 실행 시 1회 호출 */
+async function _setOneqIdxMom6(market) {
+  try {
+    const idx = market === 'us' ? '^IXIC' : '^KS11';
+    const d = await apiFetch(`/chart?symbol=${encodeURIComponent(idx)}&range=1y&interval=1d`);
+    const c = clean(d.close);
+    _oneqIdxMom6 = (c.length > 126) ? (c[c.length - 1] / c[c.length - 127] - 1) * 100 : 0;
+  } catch { _oneqIdxMom6 = 0; }
 }
 
 async function batchScreen(list, market = 'us', screenFn = screenOne) {
@@ -1599,6 +1627,7 @@ async function runOneQScreener(refresh = false) {
   [list, sum, emp].forEach(el => el.classList.add('hidden'));
 
   try {
+    await _setOneqIdxMom6(oneqMarket);   // 상대강도용 시장지수 6개월 모멘텀 세팅
     const stockList = oneqMarket === 'us' ? US_SCREEN_LIST : KR_SCREEN_LIST;
     const results = await batchScreen(stockList, oneqMarket, midTermScreenOne);
     scCacheSet(cacheKey, results);
