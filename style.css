@@ -351,7 +351,7 @@ body {
   padding: 8px 0;
 }
 .sc-market-tabs { display: flex; gap: 4px; }
-.sc-tab, .per-tab {
+.sc-tab, .per-tab, .oq-tab {
   padding: 7px 14px;
   border: 1px solid var(--border);
   background: transparent;
@@ -363,6 +363,7 @@ body {
 }
 .sc-tab.active  { background: var(--accent); color: #000; border-color: var(--accent); }
 .per-tab.active { background: var(--gold);   color: #000; border-color: var(--gold); }
+.oq-tab.active  { background: var(--violet); color: #fff; border-color: var(--violet); }
 .sc-btns { display: flex; gap: 6px; align-items: center; }
 .run-btn {
   padding: 8px 18px;
