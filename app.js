@@ -175,9 +175,12 @@ const KR_SCREEN_LIST = [
 ];
 
 /* ── 스크리너 로직 버전 (코드에 정의 → 화면에 주입: 실제 로드된 버전 확인용) ── */
+const SCREENER_DESC_SURGE = '단기 급등 v3.0 (2026-06-15) — 추세(정배열)·신고가·거래량·RSI·골든크로스. 5~10일 보유. 임계값 한국6/미국7점';
+const SCREENER_DESC_MID   = '3개월 유망 v1.0 (2026-06-17) — 변동성·6개월 모멘텀·상승여력(고점 미접근)·장기추세. 목표 +15%/3개월. 2년 백테스트 달성률 40% · ⚠ 고변동성=손실 위험도 큼';
+
 const SCREENER_META = {
-  scDesc:  { v: 'v3.0', date: '2026-06-15',
-             desc: '모멘텀 중심 — 추세(정배열)·신고가·거래량·RSI·골든크로스. 2년 백테스트로 예측력 낮은 BB스퀴즈·MACD상향 제거. 임계값 한국 6 / 미국 7점' },
+  scDesc:  { v: 'v3.0', date: '2026-06-15', desc: SCREENER_DESC_SURGE },
+  oqDesc:  { v: 'v1.0', date: '2026-06-17', desc: SCREENER_DESC_MID },
   revDesc: { v: 'v2.0', date: '2026-06-15',
              desc: '반전 — BB 하단 복귀·거래량 반등(필수 트리거)·MA5 반전·MACD 개선. 백테스트 최악인 "52주 저가 근접" 제거. 임계값 한국 7 / 미국 5점' },
   perDesc: { v: 'v1.0', date: '기본',
@@ -931,6 +934,7 @@ const SOURCE_META = {
   momentum: { label: '급등주', cls: 'src-momentum', desc: '목표 +7~15% / 손절 -3~5% / 트레일링·RSI·MA5' },
   value:    { label: '저PER',  cls: 'src-value',    desc: '목표 +20% / 손절 -10% / 트레일링 -15%' },
   reversal: { label: '반등',   cls: 'src-reversal', desc: '목표 +15% / 손절 -10% / 트레일링 -10% / MA5' },
+  midterm:  { label: '1Q',     cls: 'src-momentum', desc: '목표 +15% / 손절 -10% / 최대 3개월 보유' },
   stock:    { label: '종목탭', cls: 'src-stock',    desc: '목표 +10% / 손절 -10% / 트레일링 -10% / MA5' },
 };
 
@@ -1462,11 +1466,65 @@ async function screenOne(symbol) {
 }
 
 /* 배치 처리 (5개씩) */
-async function batchScreen(list, market = 'us') {
+/* ── 중기 유망주 (3개월 +15% 목표) — 2년 백테스트 검증 ──
+   핵심 요인: 변동성(연율)·6개월 모멘텀·상승여력(고점 미접근)·장기추세.
+   검증: 조합점수 8+에서 3개월 +15% 달성률 32.5%→39.8%, 평균 +17%.
+   단기 급등(신고가·골든크로스)과 정반대 — 고점 근접은 오히려 감점. */
+async function midTermScreenOne(symbol) {
+  try {
+    const data = await apiFetch(`/chart?symbol=${encodeURIComponent(symbol)}&range=1y&interval=1d`);
+    const closes  = clean(data.close);
+    const volumes = (data.volume || []).map(v => v ?? 0);
+    if (closes.length < 200) return null;
+    const n = closes.length;
+    const price = closes[n - 1];
+    if (!_liquidEnough(symbol, closes, volumes, price)) return null;
+
+    const avg = a => a.reduce((x, y) => x + y, 0) / a.length;
+    const ma200 = avg(closes.slice(-200));
+    const ma200prev = n >= 220 ? avg(closes.slice(-220, -20)) : ma200;
+    const mom3 = n > 63  ? (price / closes[n - 64]  - 1) * 100 : 0;
+    const mom6 = n > 126 ? (price / closes[n - 127] - 1) * 100 : 0;
+    const hi252 = Math.max(...closes.slice(-252));
+    const highPct = hi252 ? price / hi252 * 100 : 0;
+    let rets = [];
+    for (let i = n - 20; i < n; i++) rets.push((closes[i] - closes[i - 1]) / closes[i - 1]);
+    const m = avg(rets);
+    const vol20 = Math.sqrt(avg(rets.map(r => (r - m) ** 2))) * Math.sqrt(252) * 100;
+    const rsi = calcRSI(closes);
+
+    let score = 0; const signals = [];
+    if (vol20 >= 40 && vol20 <= 90) { score += 3; signals.push(`변동성 ${vol20.toFixed(0)}%`); }
+    else if (vol20 > 90)            { score += 1; signals.push(`변동성 ${vol20.toFixed(0)}%(과열)`); }
+    else if (vol20 >= 30)           { score += 1; }
+    if (mom6 > 20)      { score += 3; signals.push(`6개월 +${mom6.toFixed(0)}%`); }
+    else if (mom6 > 10) { score += 2; signals.push(`6개월 +${mom6.toFixed(0)}%`); }
+    else if (mom6 > 0)  { score += 1; }
+    if (ma200 > ma200prev) { score += 1; signals.push('장기추세 상승'); }
+    if (highPct >= 55 && highPct < 88) { score += 2; signals.push('상승여력 구간'); }
+    else if (highPct >= 95)            { score -= 1; signals.push('고점 근접(-)'); }
+    if (mom3 > 0)        { score += 1; }
+    if (price > ma200)  { score += 1; signals.push('MA200 위'); }
+
+    if (score < 8) return null;
+    const ticker  = symbol.replace(/\.(KS|KQ)$/, '');
+    const krEntry = KR_STOCKS.find(s => s.code === ticker);
+    return {
+      ticker, name: krEntry ? krEntry.name : (US_NAMES[ticker] || ticker),
+      price,
+      change_pct: parseFloat((closes[n - 2] ? (price - closes[n - 2]) / closes[n - 2] * 100 : 0).toFixed(2)),
+      rsi: rsi ? parseFloat(rsi.toFixed(1)) : 0,
+      vol_ratio: parseFloat(vol20.toFixed(0)),   // 중기 카드엔 '변동성%'로 표기
+      score, signals, golden: false, macd_bull: false, _mid: true,
+    };
+  } catch { return null; }
+}
+
+async function batchScreen(list, market = 'us', screenFn = screenOne) {
   const results = [];
   for (let i = 0; i < list.length; i += 5) {
     const chunk = list.slice(i, i + 5);
-    const settled = await Promise.allSettled(chunk.map(s => screenOne(s)));
+    const settled = await Promise.allSettled(chunk.map(s => screenFn(s)));
     settled.forEach(r => { if (r.status === 'fulfilled' && r.value) results.push(r.value); });
     if (i + 5 < list.length) await new Promise(r => setTimeout(r, 300));
   }
@@ -1488,7 +1546,7 @@ async function batchScreen(list, market = 'us') {
   return sorted;
 }
 
-/* ── 급등 스크리너 실행 ── */
+/* ── 급등 스크리너 실행 (단기) ── */
 async function runScreener(refresh = false) {
   const btn  = document.getElementById('runBtn');
   const load = document.getElementById('scLoading');
@@ -1508,7 +1566,7 @@ async function runScreener(refresh = false) {
 
   try {
     const stockList = screenerMarket === 'us' ? US_SCREEN_LIST : KR_SCREEN_LIST;
-    const results = await batchScreen(stockList, screenerMarket);
+    const results = await batchScreen(stockList, screenerMarket, screenOne);
     scCacheSet(cacheKey, results);
     saveScreenerHistory(results, screenerMarket);
     renderScreenerResults(results);
@@ -1520,8 +1578,50 @@ async function runScreener(refresh = false) {
   }
 }
 
+/* ── 1Q 스크리너 실행 (3개월 +15% 유망주) ── */
+let oneqMarket = 'kr';
+
+async function runOneQScreener(refresh = false) {
+  const btn  = document.getElementById('oqRunBtn');
+  const load = document.getElementById('oqLoading');
+  const list = document.getElementById('oqList');
+  const sum  = document.getElementById('oqSummary');
+  const emp  = document.getElementById('oqEmpty');
+
+  const cacheKey = `oq_${oneqMarket}`;
+  if (!refresh) {
+    const cached = scCache(cacheKey);
+    if (cached) { renderScreenerResults(cached, { list, sum, emp, market: oneqMarket, source: 'midterm' }); return; }
+  }
+
+  btn.disabled = true; btn.textContent = '⏳ 분석 중...';
+  load.classList.remove('hidden');
+  [list, sum, emp].forEach(el => el.classList.add('hidden'));
+
+  try {
+    const stockList = oneqMarket === 'us' ? US_SCREEN_LIST : KR_SCREEN_LIST;
+    const results = await batchScreen(stockList, oneqMarket, midTermScreenOne);
+    scCacheSet(cacheKey, results);
+    renderScreenerResults(results, { list, sum, emp, market: oneqMarket, source: 'midterm' });
+  } catch (e) {
+    alert('1Q 스크리너 오류: ' + e.message);
+  } finally {
+    btn.disabled = false; btn.textContent = '▶ 실행';
+    load.classList.add('hidden');
+  }
+}
+
 function calcExitPlan(item) {
-  // v2.0: 최소 7점부터 표시되므로 등급 조정
+  // 중기 유망주(3개월 +15% 목표): 변동성 큰 종목 위주라 손절도 넉넉히
+  if (item._mid) {
+    const p = item.price;
+    return {
+      targetPct: 15, stopPct: 10, holdDays: '최대 3개월(63거래일)', holdDaysNum: 63,
+      targetPrice: p * 1.15, stopPrice: p * 0.90,
+      rsiWarn: false, ma5Exit: false,
+    };
+  }
+  // 단기 급등 v2.0: 최소 7점부터 표시되므로 등급 조정
   let targetPct, stopPct, holdDays, holdDaysNum;
   if (item.score >= 10)     { targetPct = 15; stopPct = 5; holdDays = '최대 5거래일'; holdDaysNum = 5; }
   else if (item.score >= 8) { targetPct = 10; stopPct = 5; holdDays = '최대 3거래일'; holdDaysNum = 3; }
@@ -1536,12 +1636,14 @@ function calcExitPlan(item) {
   };
 }
 
-function renderScreenerResults(results) {
-  const list = document.getElementById('scList');
-  const sum  = document.getElementById('scSummary');
-  const emp  = document.getElementById('scEmpty');
+function renderScreenerResults(results, opts) {
+  const list = opts ? opts.list : document.getElementById('scList');
+  const sum  = opts ? opts.sum  : document.getElementById('scSummary');
+  const emp  = opts ? opts.emp  : document.getElementById('scEmpty');
+  const mkt  = opts ? opts.market : screenerMarket;
+  const wsrc = opts ? opts.source : 'momentum';
 
-  if (!results.length) { emp.classList.remove('hidden'); return; }
+  if (!results.length) { emp.classList.remove('hidden'); list.classList.add('hidden'); sum.classList.add('hidden'); return; }
 
   const now = new Date().toLocaleTimeString('ko-KR');
   const highScore = results.filter(i => i.score >= 8).length;
@@ -1558,7 +1660,6 @@ function renderScreenerResults(results) {
     const chgCls   = item.change_pct >= 0 ? 'up' : 'down';
     const chgSign  = item.change_pct >= 0 ? '+' : '';
     const isOwned  = !!ownedMap[item.ticker];
-    const mkt      = screenerMarket;
     const fmtP     = p => mkt === 'us'
       ? '$' + p.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
       : Math.round(p).toLocaleString('ko-KR') + '원';
@@ -1587,8 +1688,9 @@ function renderScreenerResults(results) {
       </div>
       <div class="sc-card-bottom">
         <span class="rsi-pill ${rsiCls}">RSI ${item.rsi}</span>
-        <span class="sc-meta">거래량 ${item.vol_ratio}x</span>
-        ${item.golden ? '<span class="sig-tag hot">✂️ 골든크로스</span>' : item.macd_bull ? '<span class="sig-tag">▲ MACD 강세</span>' : ''}
+        ${item._mid ? `<span class="sc-meta">변동성 ${item.vol_ratio}%</span>`
+                    : `<span class="sc-meta">거래량 ${item.vol_ratio}x</span>
+                       ${item.golden ? '<span class="sig-tag hot">✂️ 골든크로스</span>' : item.macd_bull ? '<span class="sig-tag">▲ MACD 강세</span>' : ''}`}
         ${sigHtml}
       </div>
       <div class="sc-exit">
@@ -1600,16 +1702,16 @@ function renderScreenerResults(results) {
         ${ex.rsiWarn ? '<span class="exit-warn">⚠ RSI 과열</span>' : ''}
         ${ex.ma5Exit ? '<span class="exit-note">MA5 이탈시 즉시 매도</span>' : ''}
         <span style="flex:1"></span>
-        ${watchBtnHtml(item.ticker, item.name, screenerMarket, 'momentum', item.price)}
+        ${watchBtnHtml(item.ticker, item.name, mkt, wsrc, item.price)}
       </div>
     </div>`;
   }).join('');
 
   list.querySelectorAll('.sc-card').forEach(card => {
     card.addEventListener('click', () => {
-      currentMarket = screenerMarket;
+      currentMarket = mkt;
       document.querySelectorAll('.tab-btn').forEach(b =>
-        b.classList.toggle('active', b.dataset.market === screenerMarket));
+        b.classList.toggle('active', b.dataset.market === mkt));
       switchTab('home');
       selectStock(card.dataset.code, card.dataset.name);
     });
@@ -2253,6 +2355,18 @@ document.querySelectorAll('.per-tab').forEach(btn => {
 
 document.getElementById('runBtn').addEventListener('click', () => runScreener(false));
 document.getElementById('refreshBtn').addEventListener('click', () => runScreener(true));
+
+// 1Q (3개월 유망주) 마켓 탭 + 실행
+document.querySelectorAll('.oq-tab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.oq-tab').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    oneqMarket = btn.dataset.m;
+    ['oqList','oqSummary','oqEmpty'].forEach(id => document.getElementById(id).classList.add('hidden'));
+  });
+});
+document.getElementById('oqRunBtn').addEventListener('click', () => runOneQScreener(false));
+document.getElementById('oqRefreshBtn').addEventListener('click', () => runOneQScreener(true));
 document.getElementById('perRunBtn').addEventListener('click', () => runPerScreener(false));
 document.getElementById('perRefreshBtn').addEventListener('click', () => runPerScreener(true));
 

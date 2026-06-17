@@ -39,6 +39,10 @@
       <span class="nav-icon">🔥</span>
       <span class="nav-label">급등주</span>
     </button>
+    <button class="nav-btn" data-tab="oneq">
+      <span class="nav-icon">🚀</span>
+      <span class="nav-label">1Q</span>
+    </button>
     <button class="nav-btn" data-tab="value">
       <span class="nav-icon">💰</span>
       <span class="nav-label">저PER</span>
@@ -187,6 +191,28 @@
         <div id="scSummary" class="sc-summary hidden"></div>
         <div id="scList" class="sc-list hidden"></div>
         <div id="scEmpty" class="empty-msg hidden">조건에 맞는 종목이 없습니다.</div>
+      </div>
+
+      <!-- 1Q 탭 (3개월 +15% 유망주) -->
+      <div id="tab-oneq" class="tab-pane hidden">
+        <div class="sc-controls">
+          <div class="sc-market-tabs">
+            <button class="oq-tab" data-m="us">🇺🇸 미국</button>
+            <button class="oq-tab active" data-m="kr">🇰🇷 한국</button>
+          </div>
+          <div class="sc-btns">
+            <button id="oqRunBtn" class="run-btn">▶ 실행</button>
+            <button id="oqRefreshBtn" class="icon-btn">↺</button>
+          </div>
+        </div>
+        <p class="sc-desc" id="oqDesc"></p>
+        <div id="oqLoading" class="sc-loading hidden">
+          <div class="spinner"></div>
+          <p>3개월 유망주 분석 중...<br><small>약 30~60초 소요됩니다</small></p>
+        </div>
+        <div id="oqSummary" class="sc-summary hidden"></div>
+        <div id="oqList" class="sc-list hidden"></div>
+        <div id="oqEmpty" class="empty-msg hidden">조건에 맞는 종목이 없습니다.</div>
       </div>
 
       <!-- 저PER 탭 -->
@@ -383,6 +409,6 @@
   </div>
 </div>
 
-<script src="./app.js?v=51"></script>
+<script src="./app.js?v=52"></script>
 </body>
 </html>
