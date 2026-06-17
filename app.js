@@ -1478,10 +1478,25 @@ async function midTermScreenOne(symbol) {
     const data = await apiFetch(`/chart?symbol=${encodeURIComponent(symbol)}&range=1y&interval=1d`);
     const closes  = clean(data.close);
     const volumes = (data.volume || []).map(v => v ?? 0);
+    const highs   = (data.high || []).map(v => v ?? null);
+    const lows    = (data.low  || []).map(v => v ?? null);
     if (closes.length < 200) return null;
     const n = closes.length;
     const price = closes[n - 1];
     if (!_liquidEnough(symbol, closes, volumes, price)) return null;
+
+    // ATR(14) % — 변동성 기반 손절폭 산정용
+    let atrPct = null;
+    if (highs.length >= 15 && lows.length >= 15) {
+      let tr = 0, cnt = 0;
+      for (let k = n - 14; k < n; k++) {
+        const t = Math.max((highs[k] ?? 0) - (lows[k] ?? 0),
+                           Math.abs((highs[k] ?? 0) - closes[k - 1]),
+                           Math.abs((lows[k] ?? 0) - closes[k - 1]));
+        if (isFinite(t) && t > 0) { tr += t; cnt++; }
+      }
+      if (cnt) atrPct = (tr / cnt) / price * 100;
+    }
 
     const avg = a => a.reduce((x, y) => x + y, 0) / a.length;
     const ma200 = avg(closes.slice(-200));
@@ -1533,6 +1548,7 @@ async function midTermScreenOne(symbol) {
       change_pct: parseFloat((closes[n - 2] ? (price - closes[n - 2]) / closes[n - 2] * 100 : 0).toFixed(2)),
       rsi: rsi ? parseFloat(rsi.toFixed(1)) : 0,
       vol_ratio: parseFloat(vol20.toFixed(0)),   // 중기 카드엔 '변동성%'로 표기
+      atr: atrPct ? parseFloat(atrPct.toFixed(2)) : null,
       score, signals, golden: false, macd_bull: false, _mid: true,
     };
   } catch { return null; }
@@ -1649,13 +1665,18 @@ async function runOneQScreener(refresh = false) {
 }
 
 function calcExitPlan(item) {
-  // 중기 유망주(3개월 +15% 목표): 변동성 큰 종목 위주라 손절도 넉넉히
+  // 중기 유망주(3개월 +15% 목표): ATR 기반 변동성 손절 + 포지션 사이징
   if (item._mid) {
     const p = item.price;
+    const atr = Number(item.atr) || 5;
+    // ATR 2배 손절 (일중 흔들기에 쉽게 안 털리게), 7~18% 범위
+    const stopPct = Math.round(Math.min(18, Math.max(7, atr * 2)) * 10) / 10;
+    // 포지션 사이징: 계좌 1% 리스크 기준 권장 비중 = 1% / 손절폭 (손절 클수록 소액)
+    const posPct = Math.round(100 / stopPct * 10) / 10;
     return {
-      targetPct: 15, stopPct: 10, holdDays: '최대 3개월(63거래일)', holdDaysNum: 63,
-      targetPrice: p * 1.15, stopPrice: p * 0.90,
-      rsiWarn: false, ma5Exit: false,
+      targetPct: 15, stopPct, holdDays: '최대 3개월(63거래일)', holdDaysNum: 63,
+      targetPrice: p * 1.15, stopPrice: p * (1 - stopPct / 100),
+      rsiWarn: false, ma5Exit: false, posPct,
     };
   }
   // 단기 급등 v2.0: 최소 7점부터 표시되므로 등급 조정
@@ -1733,9 +1754,10 @@ function renderScreenerResults(results, opts) {
       <div class="sc-exit">
         <span class="exit-target">▲ +${ex.targetPct}% ${fmtP(ex.targetPrice)}</span>
         <span class="exit-sep">|</span>
-        <span class="exit-stop">▼ -${ex.stopPct}% ${fmtP(ex.stopPrice)}</span>
+        <span class="exit-stop">▼ -${ex.stopPct}%${item._mid ? '(ATR)' : ''} ${fmtP(ex.stopPrice)}</span>
         <span class="exit-sep">|</span>
         <span class="exit-days">${ex.holdDays}</span>
+        ${item._mid && ex.posPct ? `<span class="exit-note">권장비중 ~${ex.posPct}% (1%리스크)</span>` : ''}
         ${ex.rsiWarn ? '<span class="exit-warn">⚠ RSI 과열</span>' : ''}
         ${ex.ma5Exit ? '<span class="exit-note">MA5 이탈시 즉시 매도</span>' : ''}
         <span style="flex:1"></span>
