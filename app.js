@@ -1603,6 +1603,14 @@ async function runOneQScreener(refresh = false) {
     const results = await batchScreen(stockList, oneqMarket, midTermScreenOne);
     scCacheSet(cacheKey, results);
     renderScreenerResults(results, { list, sum, emp, market: oneqMarket, source: 'midterm' });
+    // out-of-sample 검증용 서버 로깅 (예측 → 3개월 후 실제수익 대조)
+    if (results.length) {
+      fetch(`${SERVER}/api/log-1q`, {
+        method: 'POST', headers: { ...HDR, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ market: oneqMarket,
+          items: results.map(r => ({ ticker: r.ticker, name: r.name, score: r.score, price: r.price })) }),
+      }).catch(() => {});
+    }
   } catch (e) {
     alert('1Q 스크리너 오류: ' + e.message);
   } finally {
