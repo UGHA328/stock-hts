@@ -17,7 +17,7 @@
   <meta name="apple-mobile-web-app-title" content="주식HTS">
   <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
 
-  <link rel="stylesheet" href="./style.css?v=18">
+  <link rel="stylesheet" href="./style.css?v=19">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
 </head>
@@ -167,6 +167,13 @@
             <div id="customPerResult" style="font-size:13px;padding:4px 0"></div>
           </div>
 
+          <div class="chart-range-tabs">
+            <button class="chart-range active" data-range="6mo">6개월</button>
+            <button class="chart-range" data-range="1y">1년</button>
+            <button class="chart-range" data-range="3y">3년</button>
+            <button class="chart-range" data-range="5y">5년</button>
+            <button class="chart-range" data-range="10y">10년</button>
+          </div>
           <div class="chart-wrap tall"><div id="priceChart"></div></div>
         </div>
       </div>
@@ -409,6 +416,6 @@
   </div>
 </div>
 
-<script src="./app.js?v=55"></script>
+<script src="./app.js?v=56"></script>
 </body>
 </html>

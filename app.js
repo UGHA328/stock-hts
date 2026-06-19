@@ -214,8 +214,21 @@ async function fetchQuote(symbol) {
   return apiFetch(`/quote?symbol=${encodeURIComponent(symbol)}`);
 }
 
-async function fetchChart(symbol) {
-  return apiFetch(`/chart?symbol=${encodeURIComponent(symbol)}&range=6mo&interval=1d`);
+let _chartRange = '6mo';   // 차트 기간 (6mo/1y/3y/5y/10y)
+async function fetchChart(symbol, range) {
+  return apiFetch(`/chart?symbol=${encodeURIComponent(symbol)}&range=${range || _chartRange}&interval=1d`);
+}
+
+/* 선택한 기간으로 차트만 다시 로드 (시세는 그대로) */
+async function loadChartRange(range) {
+  if (!currentSymbol) return;
+  _chartRange = range;
+  document.querySelectorAll('.chart-range').forEach(b =>
+    b.classList.toggle('active', b.dataset.range === range));
+  try {
+    const c = await fetchChart(currentSymbol, range);
+    if (c) updateCharts(c);
+  } catch (e) { console.error('차트 기간 로드 실패:', e); }
 }
 
 async function fetchSearch(query) {
@@ -3425,6 +3438,8 @@ document.getElementById('btnLegends').addEventListener('click', runLegendAnalysi
 document.getElementById('btnNotebookLM').addEventListener('click', runNotebookLM);
 document.getElementById('btnAiChat').addEventListener('click', openAiChat);
 document.getElementById('btnAiScore').addEventListener('click', runAiScore);
+document.querySelectorAll('.chart-range').forEach(b =>
+  b.addEventListener('click', () => loadChartRange(b.dataset.range)));
 
 document.getElementById('fortuneRunBtn').addEventListener('click', runFortune);
 
