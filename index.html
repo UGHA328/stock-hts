@@ -17,7 +17,7 @@
   <meta name="apple-mobile-web-app-title" content="주식HTS">
   <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
 
-  <link rel="stylesheet" href="./style.css?v=19">
+  <link rel="stylesheet" href="./style.css?v=20">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
 </head>
@@ -42,6 +42,10 @@
     <button class="nav-btn" data-tab="oneq">
       <span class="nav-icon">🚀</span>
       <span class="nav-label">1Q</span>
+    </button>
+    <button class="nav-btn" data-tab="index">
+      <span class="nav-icon">🌐</span>
+      <span class="nav-label">지수</span>
     </button>
     <button class="nav-btn" data-tab="value">
       <span class="nav-icon">💰</span>
@@ -220,6 +224,26 @@
         <div id="oqSummary" class="sc-summary hidden"></div>
         <div id="oqList" class="sc-list hidden"></div>
         <div id="oqEmpty" class="empty-msg hidden">조건에 맞는 종목이 없습니다.</div>
+      </div>
+
+      <!-- 세계 지수 탭 -->
+      <div id="tab-index" class="tab-pane hidden">
+        <div class="sc-controls">
+          <p class="sc-desc" style="margin:0">🌐 세계 주요 지수 — 카드를 누르면 추이 그래프</p>
+          <button id="idxRefreshBtn" class="icon-btn">↺</button>
+        </div>
+        <div id="idxList" class="idx-list"></div>
+        <div id="idxChartWrap" class="hidden">
+          <div class="idx-chart-title" id="idxChartTitle"></div>
+          <div class="chart-range-tabs">
+            <button class="idx-range active" data-range="6mo">6개월</button>
+            <button class="idx-range" data-range="1y">1년</button>
+            <button class="idx-range" data-range="3y">3년</button>
+            <button class="idx-range" data-range="5y">5년</button>
+            <button class="idx-range" data-range="10y">10년</button>
+          </div>
+          <div class="chart-wrap tall"><div id="idxChart"></div></div>
+        </div>
       </div>
 
       <!-- 저PER 탭 -->
@@ -416,6 +440,6 @@
   </div>
 </div>
 
-<script src="./app.js?v=56"></script>
+<script src="./app.js?v=57"></script>
 </body>
 </html>

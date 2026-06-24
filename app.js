@@ -1989,6 +1989,70 @@ function switchTab(tabId) {
   if (tabId === 'watch') renderWatchlist();
   if (tabId === 'home') document.getElementById('searchInput').focus();
   if (tabId === 'perf') updatePerfPrices().then(hist => renderPerfTab(hist));
+  if (tabId === 'index' && !document.querySelector('#idxList .idx-card')) loadIndices();
+}
+
+/* ── 세계 지수 ── */
+let _idxChart = null, _idxLine = null, _idxRange = '6mo', _idxSymbol = null, _idxName = '';
+
+async function loadIndices() {
+  const list = document.getElementById('idxList');
+  list.innerHTML = '<div style="color:var(--muted);padding:20px">지수 불러오는 중…</div>';
+  try {
+    const data = await apiFetch('/api/indices');
+    list.innerHTML = data.map(d => {
+      if (d.price == null)
+        return `<div class="idx-card"><div class="idx-name">${escHtml(d.name)}</div><div class="idx-price">-</div></div>`;
+      const up = d.change_pct >= 0;
+      const col = up ? 'var(--red)' : 'var(--blue)';   // 한국식: 상승=빨강
+      return `<div class="idx-card" data-symbol="${escHtml(d.symbol)}" data-name="${escHtml(d.name)}">
+        <div class="idx-name">${escHtml(d.name)}</div>
+        <div class="idx-price">${d.price.toLocaleString()}</div>
+        <div class="idx-chg" style="color:${col}">${up?'+':''}${d.change_pct}% (${up?'+':''}${d.change.toLocaleString()})</div>
+      </div>`;
+    }).join('');
+    list.querySelectorAll('.idx-card[data-symbol]').forEach(c =>
+      c.addEventListener('click', () => {
+        list.querySelectorAll('.idx-card').forEach(x => x.classList.remove('active'));
+        c.classList.add('active');
+        loadIndexChart(c.dataset.symbol, c.dataset.name);
+      }));
+    const first = list.querySelector('.idx-card[data-symbol]');
+    if (first) { first.classList.add('active'); loadIndexChart(first.dataset.symbol, first.dataset.name); }
+  } catch (e) {
+    list.innerHTML = `<div style="color:var(--red);padding:20px">지수 조회 오류: ${escHtml(e.message)}</div>`;
+  }
+}
+
+function _initIdxChart() {
+  if (_idxChart || typeof LightweightCharts === 'undefined') return;
+  _idxChart = LightweightCharts.createChart(document.getElementById('idxChart'), {
+    autoSize: true, layout: { background: { color: 'transparent' }, textColor: '#8b949e', fontSize: 11 },
+    grid: { vertLines: { color: '#21262d' }, horzLines: { color: '#21262d' } },
+    rightPriceScale: { borderColor: '#30363d' }, timeScale: { borderColor: '#30363d' },
+    crosshair: { mode: LightweightCharts.CrosshairMode.Normal }, localization: { locale: 'ko-KR' },
+  });
+  _idxLine = _idxChart.addAreaSeries({
+    lineColor: '#58a6ff', topColor: 'rgba(88,166,255,.25)', bottomColor: 'rgba(88,166,255,0)',
+    lineWidth: 2, priceLineVisible: false, lastValueVisible: true,
+  });
+}
+
+async function loadIndexChart(symbol, name) {
+  _idxSymbol = symbol; _idxName = name || symbol;
+  document.getElementById('idxChartWrap').classList.remove('hidden');
+  document.getElementById('idxChartTitle').textContent = _idxName + ' 추이';
+  _initIdxChart();
+  try {
+    const d = await apiFetch(`/chart?symbol=${encodeURIComponent(symbol)}&range=${_idxRange}&interval=1d`);
+    const times = _chartTimes(d);
+    const data = [];
+    for (let i = 0; i < (d.close || []).length; i++) {
+      if (times[i] && d.close[i] != null) data.push({ time: times[i], value: d.close[i] });
+    }
+    _idxLine.setData(data);
+    _idxChart.timeScale().fitContent();
+  } catch (e) { console.error('지수 차트 오류:', e); }
 }
 
 /* ── 마켓 전환 ── */
@@ -3440,6 +3504,13 @@ document.getElementById('btnAiChat').addEventListener('click', openAiChat);
 document.getElementById('btnAiScore').addEventListener('click', runAiScore);
 document.querySelectorAll('.chart-range').forEach(b =>
   b.addEventListener('click', () => loadChartRange(b.dataset.range)));
+document.querySelectorAll('.idx-range').forEach(b =>
+  b.addEventListener('click', () => {
+    _idxRange = b.dataset.range;
+    document.querySelectorAll('.idx-range').forEach(x => x.classList.toggle('active', x.dataset.range === _idxRange));
+    if (_idxSymbol) loadIndexChart(_idxSymbol, _idxName);
+  }));
+document.getElementById('idxRefreshBtn').addEventListener('click', loadIndices);
 
 document.getElementById('fortuneRunBtn').addEventListener('click', runFortune);
 
