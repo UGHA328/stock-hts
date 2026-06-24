@@ -2151,25 +2151,27 @@ async function selectStock(code, name) {
 
 function updateStockHeader(q) {
   if (!q) return;
+  // 통화는 시장 토글이 아니라 quote의 currency로 판정 (KR 토글에서 미국 종목 봐도 $ 표시)
+  const mkt = q.currency === 'USD' ? 'us' : (q.currency === 'KRW' ? 'kr' : currentMarket);
   const chg  = q.change || 0;
   const pct  = q.change_pct || 0;
   const sign = chg >= 0 ? '+' : '';
-  document.getElementById('stockPrice').textContent = formatPrice(q.price, currentMarket, q.currency);
+  document.getElementById('stockPrice').textContent = formatPrice(q.price, mkt, q.currency);
   const chgEl = document.getElementById('stockChange');
   chgEl.textContent = `${sign}${chg.toFixed(2)} (${sign}${pct.toFixed(2)}%)`;
   chgEl.className = 'change ' + (chg >= 0 ? 'up' : 'down');
-  document.getElementById('mOpen').textContent    = formatPrice(q.open,   currentMarket, q.currency);
-  document.getElementById('mHigh').textContent    = formatPrice(q.high,   currentMarket, q.currency);
-  document.getElementById('mLow').textContent     = formatPrice(q.low,    currentMarket, q.currency);
+  document.getElementById('mOpen').textContent    = formatPrice(q.open,   mkt, q.currency);
+  document.getElementById('mHigh').textContent    = formatPrice(q.high,   mkt, q.currency);
+  document.getElementById('mLow').textContent     = formatPrice(q.low,    mkt, q.currency);
   document.getElementById('mVolume').textContent  = fmtVol(q.volume);
   document.getElementById('mPer').textContent     = q.per   ? q.per.toFixed(1) + 'x'  : '-';
   document.getElementById('mFpe').textContent     = q.fpe   ? q.fpe.toFixed(1) + 'x'  : '-';
   document.getElementById('mPbr').textContent     = q.pbr   ? q.pbr.toFixed(2) + 'x'  : '-';
-  document.getElementById('mEps').textContent     = q.eps   ? formatPrice(q.eps, currentMarket, q.currency) : '-';
+  document.getElementById('mEps').textContent     = q.eps   ? formatPrice(q.eps, mkt, q.currency) : '-';
   document.getElementById('mDiv').textContent     = q.dividend ? q.dividend.toFixed(2) + '%' : '-';
-  document.getElementById('mMcap').textContent    = q.market_cap ? fmtMcap(q.market_cap, currentMarket) : '-';
-  document.getElementById('m52H').textContent     = q.week52_high ? formatPrice(q.week52_high, currentMarket, q.currency) : '-';
-  document.getElementById('m52L').textContent     = q.week52_low  ? formatPrice(q.week52_low,  currentMarket, q.currency) : '-';
+  document.getElementById('mMcap').textContent    = q.market_cap ? fmtMcap(q.market_cap, mkt) : '-';
+  document.getElementById('m52H').textContent     = q.week52_high ? formatPrice(q.week52_high, mkt, q.currency) : '-';
+  document.getElementById('m52L').textContent     = q.week52_low  ? formatPrice(q.week52_low,  mkt, q.currency) : '-';
   document.getElementById('mRoe').textContent     = q.roe        ? q.roe.toFixed(1) + '%'  : '-';
   document.getElementById('mSectorPer').textContent = q.sector_per ? q.sector_per.toFixed(1) + 'x' : '-';
 }
@@ -2419,7 +2421,9 @@ async function renderWatchlist() {
 /* ── 유틸 ── */
 function formatPrice(n, market, currency) {
   if (!n) return '-';
-  if (market === 'kr' || currency === 'KRW') return Number(n).toLocaleString('ko-KR') + '원';
+  // currency가 주어지면 통화 우선 (시장 토글보다 신뢰). USD→$, KRW→원.
+  const krw = currency ? currency === 'KRW' : market === 'kr';
+  if (krw) return Number(n).toLocaleString('ko-KR') + '원';
   return '$' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 function fmtMcap(n, market) {
