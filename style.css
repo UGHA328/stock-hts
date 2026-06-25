@@ -1050,3 +1050,15 @@ body {
 .macro-chat-msg.me { background: var(--accent); color: #fff; align-self: flex-end; }
 .macro-chat-input { display: flex; gap: 8px; padding: 10px; border-top: 1px solid var(--border); }
 .macro-chat-input input { flex: 1; padding: 9px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--text); font-size: 13px; }
+
+/* ── 섹터 탭 ── */
+.sector-card.active { border-color: var(--accent); }
+.sector-detail { margin-top: 18px; border: 1px solid var(--accent); border-radius: 12px; overflow: hidden; background: var(--card); }
+.sector-detail-head { padding: 11px 14px; font-size: 14px; font-weight: 800; border-bottom: 1px solid var(--border); background: rgba(88,166,255,.08); }
+.sector-detail-body { padding: 14px; }
+.sector-outlook-title, .sector-news-title { font-size: 13px; font-weight: 700; margin: 4px 0 8px; }
+.sector-news-title { margin-top: 16px; }
+.sector-outlook { font-size: 13px; line-height: 1.7; white-space: pre-wrap; color: var(--text); }
+.sector-news { display: flex; flex-direction: column; gap: 7px; }
+.sector-news-link { font-size: 12px; color: var(--accent); text-decoration: none; padding: 7px 10px; border: 1px solid var(--border); border-radius: 8px; word-break: break-all; }
+.sector-news-link:hover { border-color: var(--accent); background: rgba(88,166,255,.06); }

@@ -1991,6 +1991,89 @@ function switchTab(tabId) {
   if (tabId === 'perf') updatePerfPrices().then(hist => renderPerfTab(hist));
   if (tabId === 'index' && !document.querySelector('#idxList .idx-card')) loadIndices();
   if (tabId === 'macro' && !document.querySelector('#macroUS .macro-card')) loadMacro();
+  if (tabId === 'sector' && !document.querySelector('#sectorUS .macro-card')) loadSectors();
+}
+
+/* ── 섹터 (미국 ETF 다기간 + 한국 업종 + 섹터별 AI 전망/뉴스) ── */
+let _sectorData = null;
+
+async function loadSectors() {
+  const us = document.getElementById('sectorUS'), kr = document.getElementById('sectorKR');
+  us.innerHTML = '<div style="color:var(--muted);padding:20px">섹터 불러오는 중…</div>'; kr.innerHTML = '';
+  try {
+    const d = await apiFetch('/api/sectors');
+    _sectorData = d;
+    document.getElementById('sectorSource').textContent =
+      `갱신 ${d.updated} · 미국 주도: ${(d.us_leaders || []).join('·')} / 한국 강세: ${(d.kr_leaders || []).join('·')}`;
+    _renderSectorUS(us, d.us);
+    _renderSectorKR(kr, d.kr);
+  } catch (e) {
+    us.innerHTML = `<div style="color:var(--red);padding:20px">섹터 오류: ${escHtml(e.message)}</div>`;
+  }
+}
+
+function _sPct(v) {
+  if (v == null) return '<span style="color:var(--muted)">-</span>';
+  const c = v >= 0 ? 'var(--red)' : 'var(--blue)';
+  return `<span style="color:${c}">${v >= 0 ? '+' : ''}${v}%</span>`;
+}
+
+function _renderSectorUS(el, items) {
+  const cards = (items || []).map(s => `
+    <div class="macro-card sector-card" data-market="us" data-name="${escHtml(s.name)}">
+      <div class="m-label">${escHtml(s.name)} <span style="color:var(--muted)">${s.ticker}</span></div>
+      <div class="m-value" style="font-size:18px">3M ${_sPct(s.m3)}</div>
+      <div class="m-meta">1D ${_sPct(s.d1)} · 1M ${_sPct(s.m1)} · YTD ${_sPct(s.ytd)}</div>
+    </div>`).join('');
+  el.innerHTML = `<div class="macro-region-title">🇺🇸 미국 섹터 (3개월 수익률순)</div><div class="macro-grid">${cards}</div>`;
+  _bindSectorCards(el);
+}
+
+function _renderSectorKR(el, items) {
+  const cards = (items || []).slice(0, 24).map(s => `
+    <div class="macro-card sector-card" data-market="kr" data-name="${escHtml(s.name)}">
+      <div class="m-label">${escHtml(s.name)}</div>
+      <div class="m-value" style="font-size:18px">${_sPct(s.chg)}</div>
+      <div class="m-meta">${s.up != null ? `▲${s.up} ▼${s.down}` : '당일 등락'}</div>
+    </div>`).join('');
+  el.innerHTML = `<div class="macro-region-title">🇰🇷 한국 업종 (당일 등락순)</div><div class="macro-grid">${cards}</div>`;
+  _bindSectorCards(el);
+}
+
+function _bindSectorCards(el) {
+  el.querySelectorAll('.sector-card').forEach(c =>
+    c.addEventListener('click', () => {
+      document.querySelectorAll('#tab-sector .sector-card').forEach(x => x.classList.remove('active'));
+      c.classList.add('active');
+      loadSectorDetail(c.dataset.name, c.dataset.market);
+    }));
+}
+
+async function loadSectorDetail(name, market) {
+  const wrap = document.getElementById('sectorDetail');
+  wrap.classList.remove('hidden');
+  document.getElementById('sectorDetailTitle').textContent =
+    `${market === 'us' ? '🇺🇸' : '🇰🇷'} ${name} 섹터`;
+  const outEl = document.getElementById('sectorOutlook'), newsEl = document.getElementById('sectorNews');
+  outEl.textContent = 'AI 전망 분석 중… (검색 포함, 10초 내외)';
+  newsEl.innerHTML = '';
+  wrap.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  try {
+    const r = await fetch(SERVER + '/ai/sector-detail', {
+      method: 'POST', headers: { ...HDR, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, market }),
+    });
+    const j = await r.json();
+    outEl.textContent = j.outlook || j.error || '응답 없음';
+    if (j.news && j.news.length) {
+      newsEl.innerHTML = j.news.map(n =>
+        `<a href="${escHtml(n.url)}" target="_blank" rel="noopener" class="sector-news-link">🔗 ${escHtml(n.title)}</a>`).join('');
+    } else {
+      newsEl.innerHTML = '<span style="color:var(--muted);font-size:12px">관련 뉴스 링크를 찾지 못했습니다.</span>';
+    }
+  } catch (e) {
+    outEl.textContent = '오류: ' + e.message;
+  }
 }
 
 /* ── 거시경제 (FRED/World Bank/yfinance via OpenBB 소스) ── */
@@ -3625,6 +3708,10 @@ const _mSend = document.getElementById('macroChatSend');
 if (_mSend) _mSend.addEventListener('click', sendMacroChat);
 const _mInput = document.getElementById('macroChatInput');
 if (_mInput) _mInput.addEventListener('keydown', e => { if (e.key === 'Enter') sendMacroChat(); });
+
+// 섹터
+const _secRefresh = document.getElementById('sectorRefreshBtn');
+if (_secRefresh) _secRefresh.addEventListener('click', () => { document.getElementById('sectorUS').innerHTML = ''; loadSectors(); });
 
 document.getElementById('fortuneRunBtn').addEventListener('click', runFortune);
 
