@@ -287,7 +287,9 @@
         </div>
         <div id="sectorSource" class="sc-desc" style="margin:4px 2px 8px;font-size:11px"></div>
         <div id="sectorUS"></div>
+        <div id="sectorUSThemes"></div>
         <div id="sectorKR"></div>
+        <div id="sectorKRThemes"></div>
         <!-- 선택 섹터 상세: 전망 + 뉴스 -->
         <div id="sectorDetail" class="sector-detail hidden">
           <div class="sector-detail-head" id="sectorDetailTitle"></div>
@@ -296,6 +298,17 @@
             <div id="sectorOutlook" class="sector-outlook"></div>
             <div class="sector-news-title">📰 관련 뉴스</div>
             <div id="sectorNews" class="sector-news"></div>
+          </div>
+        </div>
+        <!-- 섹터 AI 대화창 -->
+        <div class="macro-chat">
+          <div class="macro-chat-head">💬 섹터 AI — 섹터·테마에 대해 질문하기</div>
+          <div id="sectorChatBody" class="macro-chat-body">
+            <div class="macro-chat-msg ai">섹터·테마에 대해 물어보세요. 예) "지금 방산·우주항공 전망 어때?", "금리 인하되면 어떤 섹터가 수혜야?", "한국 2차전지 약세 이유는?"</div>
+          </div>
+          <div class="macro-chat-input">
+            <input id="sectorChatInput" type="text" placeholder="섹터·테마에 대해 질문하세요...">
+            <button id="sectorChatSend" class="run-btn">전송</button>
           </div>
         </div>
       </div>
@@ -494,6 +507,6 @@
   </div>
 </div>
 
-<script src="./app.js?v=62"></script>
+<script src="./app.js?v=63"></script>
 </body>
 </html>

@@ -2005,8 +2005,10 @@ async function loadSectors() {
     _secTabData = d;
     document.getElementById('sectorSource').textContent =
       `갱신 ${d.updated} · 미국 주도: ${(d.us_leaders || []).join('·')} / 한국 강세: ${(d.kr_leaders || []).join('·')}`;
-    _renderSectorUS(us, d.us);
+    _renderSectorMulti(us, '🇺🇸 미국 섹터 (3개월 수익률순)', 'us', d.us);
+    _renderSectorMulti(document.getElementById('sectorUSThemes'), '🇺🇸 미국 테마 (자동차·우주항공·방산 등)', 'us', d.us_themes);
     _renderSectorKR(kr, d.kr);
+    _renderSectorMulti(document.getElementById('sectorKRThemes'), '🇰🇷 한국 테마 (자동차·방산·2차전지 등)', 'kr', d.kr_themes);
   } catch (e) {
     us.innerHTML = `<div style="color:var(--red);padding:20px">섹터 오류: ${escHtml(e.message)}</div>`;
   }
@@ -2018,14 +2020,15 @@ function _sPct(v) {
   return `<span style="color:${c}">${v >= 0 ? '+' : ''}${v}%</span>`;
 }
 
-function _renderSectorUS(el, items) {
+function _renderSectorMulti(el, title, market, items) {
+  if (!el) return;
   const cards = (items || []).map(s => `
-    <div class="macro-card sector-card" data-market="us" data-name="${escHtml(s.name)}">
-      <div class="m-label">${escHtml(s.name)} <span style="color:var(--muted)">${s.ticker}</span></div>
+    <div class="macro-card sector-card" data-market="${market}" data-name="${escHtml(s.name)}">
+      <div class="m-label">${escHtml(s.name)} <span style="color:var(--muted)">${s.ticker || ''}</span></div>
       <div class="m-value" style="font-size:18px">3M ${_sPct(s.m3)}</div>
       <div class="m-meta">1D ${_sPct(s.d1)} · 1M ${_sPct(s.m1)} · YTD ${_sPct(s.ytd)}</div>
     </div>`).join('');
-  el.innerHTML = `<div class="macro-region-title">🇺🇸 미국 섹터 (3개월 수익률순)</div><div class="macro-grid">${cards}</div>`;
+  el.innerHTML = `<div class="macro-region-title">${title}</div><div class="macro-grid">${cards}</div>`;
   _bindSectorCards(el);
 }
 
@@ -2074,6 +2077,32 @@ async function loadSectorDetail(name, market) {
   } catch (e) {
     outEl.textContent = '오류: ' + e.message;
   }
+}
+
+/* 섹터 AI 챗 */
+let _sectorHist = [];
+async function sendSectorChat() {
+  const inp = document.getElementById('sectorChatInput');
+  const msg = inp.value.trim();
+  if (!msg) return;
+  inp.value = '';
+  const body = document.getElementById('sectorChatBody');
+  body.insertAdjacentHTML('beforeend', `<div class="macro-chat-msg me">${escHtml(msg)}</div>`);
+  const wait = document.createElement('div');
+  wait.className = 'macro-chat-msg ai'; wait.textContent = '…';
+  body.appendChild(wait); body.scrollTop = body.scrollHeight;
+  try {
+    const r = await fetch(SERVER + '/ai/sector-chat', {
+      method: 'POST', headers: { ...HDR, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: msg, history: _sectorHist.slice(-8) }),
+    });
+    const j = await r.json();
+    wait.textContent = j.answer || j.error || '응답 없음';
+    _sectorHist.push({ role: 'user', content: msg }, { role: 'assistant', content: j.answer || '' });
+  } catch (e) {
+    wait.textContent = '오류: ' + e.message;
+  }
+  body.scrollTop = body.scrollHeight;
 }
 
 /* ── 거시경제 (FRED/World Bank/yfinance via OpenBB 소스) ── */
@@ -3711,6 +3740,10 @@ if (_mInput) _mInput.addEventListener('keydown', e => { if (e.key === 'Enter') s
 // 섹터
 const _secRefresh = document.getElementById('sectorRefreshBtn');
 if (_secRefresh) _secRefresh.addEventListener('click', () => { document.getElementById('sectorUS').innerHTML = ''; loadSectors(); });
+const _secSend = document.getElementById('sectorChatSend');
+if (_secSend) _secSend.addEventListener('click', sendSectorChat);
+const _secInput = document.getElementById('sectorChatInput');
+if (_secInput) _secInput.addEventListener('keydown', e => { if (e.key === 'Enter') sendSectorChat(); });
 
 document.getElementById('fortuneRunBtn').addEventListener('click', runFortune);
 
