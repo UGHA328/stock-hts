@@ -1990,6 +1990,108 @@ function switchTab(tabId) {
   if (tabId === 'home') document.getElementById('searchInput').focus();
   if (tabId === 'perf') updatePerfPrices().then(hist => renderPerfTab(hist));
   if (tabId === 'index' && !document.querySelector('#idxList .idx-card')) loadIndices();
+  if (tabId === 'macro' && !document.querySelector('#macroUS .macro-card')) loadMacro();
+}
+
+/* ── 거시경제 (FRED/World Bank/yfinance via OpenBB 소스) ── */
+let _macroData = null, _macroChart = null, _macroLine = null, _macroKey = null;
+
+async function loadMacro() {
+  const us = document.getElementById('macroUS'), kr = document.getElementById('macroKR');
+  us.innerHTML = '<div style="color:var(--muted);padding:20px">거시지표 불러오는 중…</div>';
+  kr.innerHTML = '';
+  try {
+    const d = await apiFetch('/api/macro');
+    _macroData = d;
+    document.getElementById('macroSource').textContent =
+      `갱신 ${d.updated} · 출처 ${d.source}` + (d.has_fred ? ' (FRED 월별)' : ' (무료 폴백 — FRED 키 넣으면 월별 상세)');
+    _renderMacroRegion(us, '🇺🇸 미국', 'us', d.us);
+    _renderMacroRegion(kr, '🇰🇷 한국', 'kr', d.kr);
+    const first = document.querySelector('#macroUS .macro-card');
+    if (first) { first.classList.add('active'); _macroChartShow(first.dataset.region, first.dataset.key); }
+  } catch (e) {
+    us.innerHTML = `<div style="color:var(--red);padding:20px">거시지표 오류: ${escHtml(e.message)}</div>`;
+  }
+}
+
+function _renderMacroRegion(el, title, region, items) {
+  const cards = (items || []).map(it => {
+    const chg = it.prev != null ? (it.latest - it.prev) : null;
+    const cls = chg == null ? '' : (chg >= 0 ? 'up' : 'down');
+    const arrow = chg == null ? '' : (chg >= 0 ? '▲' : '▼');
+    const chgStr = chg == null ? '' : ` <span class="m-chg ${cls}">${arrow}${Math.abs(chg).toFixed(2)}</span>`;
+    return `<div class="macro-card" data-region="${region}" data-key="${it.key}">
+      <div class="m-label">${escHtml(it.label)}</div>
+      <div class="m-value">${it.latest.toLocaleString()}<span class="m-unit">${escHtml(it.unit)}</span></div>
+      <div class="m-meta">${it.date}${chgStr}</div>
+    </div>`;
+  }).join('');
+  el.innerHTML = `<div class="macro-region-title">${title}</div><div class="macro-grid">${cards}</div>`;
+  el.querySelectorAll('.macro-card').forEach(c =>
+    c.addEventListener('click', () => {
+      document.querySelectorAll('#tab-macro .macro-card').forEach(x => x.classList.remove('active'));
+      c.classList.add('active');
+      _macroChartShow(c.dataset.region, c.dataset.key);
+    }));
+}
+
+function _initMacroChart() {
+  if (_macroChart || typeof LightweightCharts === 'undefined') return;
+  _macroChart = LightweightCharts.createChart(document.getElementById('macroChart'), {
+    autoSize: true, layout: { background: { color: 'transparent' }, textColor: '#8b949e', fontSize: 11 },
+    grid: { vertLines: { color: '#21262d' }, horzLines: { color: '#21262d' } },
+    rightPriceScale: { borderColor: '#30363d' }, timeScale: { borderColor: '#30363d' },
+    crosshair: { mode: LightweightCharts.CrosshairMode.Normal }, localization: { locale: 'ko-KR' },
+  });
+  _macroLine = _macroChart.addAreaSeries({
+    lineColor: '#d29922', topColor: 'rgba(210,153,34,.25)', bottomColor: 'rgba(210,153,34,0)',
+    lineWidth: 2, priceLineVisible: false, lastValueVisible: true,
+  });
+}
+
+function _macroChartShow(region, key) {
+  if (!_macroData) return;
+  const it = (_macroData[region] || []).find(x => x.key === key);
+  if (!it) return;
+  document.getElementById('macroChartWrap').classList.remove('hidden');
+  document.getElementById('macroChartTitle').textContent =
+    `${region === 'us' ? '🇺🇸' : '🇰🇷'} ${it.label} 추이`;
+  _initMacroChart();
+  const d = it.series;
+  const data = [];
+  for (let i = 0; i < d.values.length; i++) {
+    let t = d.dates[i];
+    if (t && t.length === 4) t = t + '-01-01';   // 연간 데이터
+    if (t && d.values[i] != null) data.push({ time: t, value: d.values[i] });
+  }
+  _macroLine.setData(data);
+  _macroChart.timeScale().fitContent();
+}
+
+/* 거시경제 AI 챗 */
+let _macroHist = [];
+async function sendMacroChat() {
+  const inp = document.getElementById('macroChatInput');
+  const msg = inp.value.trim();
+  if (!msg) return;
+  inp.value = '';
+  const body = document.getElementById('macroChatBody');
+  body.insertAdjacentHTML('beforeend', `<div class="macro-chat-msg me">${escHtml(msg)}</div>`);
+  const wait = document.createElement('div');
+  wait.className = 'macro-chat-msg ai'; wait.textContent = '…';
+  body.appendChild(wait); body.scrollTop = body.scrollHeight;
+  try {
+    const r = await fetch(SERVER + '/ai/macro-chat', {
+      method: 'POST', headers: { ...HDR, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: msg, history: _macroHist.slice(-8) }),
+    });
+    const j = await r.json();
+    wait.textContent = j.answer || j.error || '응답 없음';
+    _macroHist.push({ role: 'user', content: msg }, { role: 'assistant', content: j.answer || '' });
+  } catch (e) {
+    wait.textContent = '오류: ' + e.message;
+  }
+  body.scrollTop = body.scrollHeight;
 }
 
 /* ── 세계 지수 ── */
@@ -3515,6 +3617,14 @@ document.querySelectorAll('.idx-range').forEach(b =>
     if (_idxSymbol) loadIndexChart(_idxSymbol, _idxName);
   }));
 document.getElementById('idxRefreshBtn').addEventListener('click', loadIndices);
+
+// 거시경제
+const _mRefresh = document.getElementById('macroRefreshBtn');
+if (_mRefresh) _mRefresh.addEventListener('click', () => { document.getElementById('macroUS').innerHTML = ''; loadMacro(); });
+const _mSend = document.getElementById('macroChatSend');
+if (_mSend) _mSend.addEventListener('click', sendMacroChat);
+const _mInput = document.getElementById('macroChatInput');
+if (_mInput) _mInput.addEventListener('keydown', e => { if (e.key === 'Enter') sendMacroChat(); });
 
 document.getElementById('fortuneRunBtn').addEventListener('click', runFortune);
 

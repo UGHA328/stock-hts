@@ -17,7 +17,7 @@
   <meta name="apple-mobile-web-app-title" content="주식HTS">
   <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
 
-  <link rel="stylesheet" href="./style.css?v=20">
+  <link rel="stylesheet" href="./style.css?v=21">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
 </head>
@@ -46,6 +46,10 @@
     <button class="nav-btn" data-tab="index">
       <span class="nav-icon">🌐</span>
       <span class="nav-label">지수</span>
+    </button>
+    <button class="nav-btn" data-tab="macro">
+      <span class="nav-icon">🏦</span>
+      <span class="nav-label">거시경제</span>
     </button>
     <button class="nav-btn" data-tab="value">
       <span class="nav-icon">💰</span>
@@ -246,6 +250,32 @@
         </div>
       </div>
 
+      <!-- 거시경제 탭 -->
+      <div id="tab-macro" class="tab-pane hidden">
+        <div class="sc-controls">
+          <p class="sc-desc" style="margin:0">🏦 거시경제 — 미국·한국 주요 지표 (카드를 누르면 추이 그래프)</p>
+          <button id="macroRefreshBtn" class="icon-btn">↺</button>
+        </div>
+        <div id="macroSource" class="sc-desc" style="margin:4px 2px 8px;font-size:11px"></div>
+        <div id="macroUS"></div>
+        <div id="macroKR"></div>
+        <div id="macroChartWrap" class="hidden">
+          <div class="idx-chart-title" id="macroChartTitle"></div>
+          <div class="chart-wrap tall"><div id="macroChart"></div></div>
+        </div>
+        <!-- 거시경제 AI 대화창 -->
+        <div class="macro-chat">
+          <div class="macro-chat-head">💬 거시경제 AI — OpenBB 데이터로 질문하기</div>
+          <div id="macroChatBody" class="macro-chat-body">
+            <div class="macro-chat-msg ai">미국·한국 거시지표에 대해 물어보세요. 예) "지금 미국 금리 수준이 주식에 어떤 영향이야?", "한미 물가 차이가 환율에 주는 영향은?"</div>
+          </div>
+          <div class="macro-chat-input">
+            <input id="macroChatInput" type="text" placeholder="거시경제에 대해 질문하세요...">
+            <button id="macroChatSend" class="run-btn">전송</button>
+          </div>
+        </div>
+      </div>
+
       <!-- 저PER 탭 -->
       <div id="tab-value" class="tab-pane hidden">
         <div class="sc-controls">
@@ -440,6 +470,6 @@
   </div>
 </div>
 
-<script src="./app.js?v=58"></script>
+<script src="./app.js?v=59"></script>
 </body>
 </html>
