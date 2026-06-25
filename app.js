@@ -3688,7 +3688,6 @@ document.getElementById('btnDart').addEventListener('click', runAiDart);
 document.getElementById('btnValuation').addEventListener('click', runAiValuation);
 document.getElementById('btnChart').addEventListener('click', runChartAnalysis);
 document.getElementById('btnLegends').addEventListener('click', runLegendAnalysis);
-document.getElementById('btnNotebookLM').addEventListener('click', runNotebookLM);
 document.getElementById('btnAiChat').addEventListener('click', openAiChat);
 document.getElementById('btnAiScore').addEventListener('click', runAiScore);
 document.querySelectorAll('.chart-range').forEach(b =>
