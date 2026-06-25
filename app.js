@@ -1995,14 +1995,14 @@ function switchTab(tabId) {
 }
 
 /* ── 섹터 (미국 ETF 다기간 + 한국 업종 + 섹터별 AI 전망/뉴스) ── */
-let _sectorData = null;
+let _secTabData = null;
 
 async function loadSectors() {
   const us = document.getElementById('sectorUS'), kr = document.getElementById('sectorKR');
   us.innerHTML = '<div style="color:var(--muted);padding:20px">섹터 불러오는 중…</div>'; kr.innerHTML = '';
   try {
     const d = await apiFetch('/api/sectors');
-    _sectorData = d;
+    _secTabData = d;
     document.getElementById('sectorSource').textContent =
       `갱신 ${d.updated} · 미국 주도: ${(d.us_leaders || []).join('·')} / 한국 강세: ${(d.kr_leaders || []).join('·')}`;
     _renderSectorUS(us, d.us);
