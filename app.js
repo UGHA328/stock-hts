@@ -2121,7 +2121,8 @@ async function loadSectorDetail(name, market, ticker) {
       body: JSON.stringify({ name, market }),
     });
     const j = await r.json();
-    outEl.textContent = j.outlook || j.error || '응답 없음';
+    // Gemini 인용 표식([cite: 3, 18] 등) 제거
+    outEl.textContent = (j.outlook ? j.outlook.replace(/\[cite[^\]]*\]/gi, '').replace(/[ \t]{2,}/g, ' ').trim() : '') || j.error || '응답 없음';
     if (j.news && j.news.length) {
       newsEl.innerHTML = j.news.map(n =>
         `<a href="${escHtml(n.url)}" target="_blank" rel="noopener" class="sector-news-link">🔗 ${escHtml(n.title)}</a>`).join('');
