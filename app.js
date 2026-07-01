@@ -2474,12 +2474,13 @@ function updateCharts(d) {
   _bbU.setData(line(bb.upper));
   _bbM.setData(line(bb.mid));
   _bbL.setData(line(bb.lower));
-  // setData 직후엔 레이아웃 미반영이라 fitContent가 무시될 수 있음 → 지연 재호출로
-  // 기간 변경(특히 주봉 5년/10년) 시 최근봉만 압축되던 문제 해결
+  // setData 직후엔 lightweight-charts가 바 범위를 아직 계산 안 해 fitContent가 무효.
+  // (검증: 즉시=마지막 116봉만, 지연 120ms=전체 523봉 정상) → 레이아웃 반영 뒤 재호출.
+  // 기간 변경(특히 주봉 5년/10년) 시 최근봉만 오른쪽에 압축되던 문제 해결.
   const _fit = () => { try { priceChart.timeScale().fitContent(); } catch {} };
-  _fit();
-  requestAnimationFrame(_fit);
-  setTimeout(_fit, 60);
+  requestAnimationFrame(() => requestAnimationFrame(_fit));
+  setTimeout(_fit, 150);
+  setTimeout(_fit, 400);
 }
 
 /* ── 관심종목 ── */
