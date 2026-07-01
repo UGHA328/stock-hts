@@ -2399,8 +2399,10 @@ function initCharts() {
   const el = document.getElementById('priceChart');
   if (!el || typeof LightweightCharts === 'undefined') return;
 
+  // autoSize가 컨테이너 폭을 잘못(266px) 잡아 봉이 압축되던 문제 → 크기 명시 관리
+  const _CH_H = 340;
   priceChart = LightweightCharts.createChart(el, {
-    autoSize: true,
+    width: el.clientWidth || 600, height: _CH_H,
     layout: { background: { color: 'transparent' }, textColor: '#8b949e', fontSize: 11 },
     grid: { vertLines: { color: '#21262d' }, horzLines: { color: '#21262d' } },
     rightPriceScale: { borderColor: '#30363d' },
@@ -2408,6 +2410,11 @@ function initCharts() {
     crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
     localization: { locale: 'ko-KR' },
   });
+  // 컨테이너 폭 변화 대응 (창 리사이즈 / 탭 표시 지연)
+  const _resizeChart = () => { try { priceChart.resize(el.clientWidth || 600, _CH_H); } catch {} };
+  window.addEventListener('resize', _resizeChart);
+  if (window.ResizeObserver) { try { new ResizeObserver(_resizeChart).observe(el); } catch {} }
+  priceChart._resizeFn = _resizeChart;
 
   // 캔들: 한국식 — 상승=빨강, 하락=파랑
   _candleSeries = priceChart.addCandlestickSeries({
@@ -2456,6 +2463,8 @@ function _chartTimes(d) {
 function updateCharts(d) {
   if (!d || !priceChart || !_candleSeries) return;
   _lastChartData = d;
+  // 차트가 생성 시점에 좁게(266px) 잡혔을 수 있어 현재 컨테이너 폭으로 재동기화
+  if (priceChart._resizeFn) priceChart._resizeFn();
   const times = _chartTimes(d);
   const candles = [], vols = [];
   for (let i = 0; i < (d.close || []).length; i++) {
