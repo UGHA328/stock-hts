@@ -2474,7 +2474,12 @@ function updateCharts(d) {
   _bbU.setData(line(bb.upper));
   _bbM.setData(line(bb.mid));
   _bbL.setData(line(bb.lower));
-  priceChart.timeScale().fitContent();
+  // setData 직후엔 레이아웃 미반영이라 fitContent가 무시될 수 있음 → 지연 재호출로
+  // 기간 변경(특히 주봉 5년/10년) 시 최근봉만 압축되던 문제 해결
+  const _fit = () => { try { priceChart.timeScale().fitContent(); } catch {} };
+  _fit();
+  requestAnimationFrame(_fit);
+  setTimeout(_fit, 60);
 }
 
 /* ── 관심종목 ── */
