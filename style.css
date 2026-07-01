@@ -294,6 +294,12 @@ body {
   border: 1px solid var(--border); border-radius: 7px;
 }
 .chart-range.active { background: var(--accent); color: #000; border-color: var(--accent); }
+.sec-range {
+  padding: 5px 12px; font-size: 12px; font-weight: 600; cursor: pointer;
+  background: var(--surface); color: var(--muted);
+  border: 1px solid var(--border); border-radius: 7px;
+}
+.sec-range.active { background: var(--accent); color: #000; border-color: var(--accent); }
 
 /* 급등주 탭 모드 토글 (단기/중기) */
 .sc-mode-tabs { display: flex; gap: 6px; margin-bottom: 10px; }

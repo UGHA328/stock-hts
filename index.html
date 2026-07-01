@@ -17,7 +17,7 @@
   <meta name="apple-mobile-web-app-title" content="주식HTS">
   <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
 
-  <link rel="stylesheet" href="./style.css?v=24">
+  <link rel="stylesheet" href="./style.css?v=25">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
 </head>
@@ -290,13 +290,24 @@
         <div id="sectorUSThemes"></div>
         <div id="sectorKR"></div>
         <div id="sectorKRThemes"></div>
-        <!-- 선택 섹터 상세: 전망 + 뉴스 -->
+        <!-- 선택 섹터 차트 (별도 카드) -->
+        <div id="sectorChartCard" class="sector-detail hidden">
+          <div class="sector-detail-head" id="sectorChartTitle">📈 차트</div>
+          <div class="sector-detail-body">
+            <div class="chart-range-tabs">
+              <button class="sec-range active" data-range="6mo">6개월</button>
+              <button class="sec-range" data-range="1y">1년</button>
+              <button class="sec-range" data-range="3y">3년</button>
+              <button class="sec-range" data-range="5y">5년</button>
+              <button class="sec-range" data-range="10y">10년</button>
+            </div>
+            <div class="chart-wrap tall" style="height:300px"><div id="sectorChart"></div></div>
+          </div>
+        </div>
+        <!-- 선택 섹터 전망 + 뉴스 (별도 카드) -->
         <div id="sectorDetail" class="sector-detail hidden">
           <div class="sector-detail-head" id="sectorDetailTitle"></div>
           <div class="sector-detail-body">
-            <div id="sectorChartWrap" class="hidden" style="margin-bottom:14px">
-              <div class="chart-wrap tall" style="height:280px"><div id="sectorChart"></div></div>
-            </div>
             <div class="sector-outlook-title">📈 AI 전망</div>
             <div id="sectorOutlook" class="sector-outlook"></div>
             <div class="sector-news-title">📰 관련 뉴스</div>
@@ -510,6 +521,6 @@
   </div>
 </div>
 
-<script src="./app.js?v=68"></script>
+<script src="./app.js?v=69"></script>
 </body>
 </html>

@@ -2052,7 +2052,7 @@ function _bindSectorCards(el) {
     }));
 }
 
-let _secChart = null, _secLine = null;
+let _secChart = null, _secLine = null, _secTicker = null, _secMarket = 'us', _secRange = '6mo';
 function _initSectorChart() {
   if (_secChart || typeof LightweightCharts === 'undefined') return;
   const el = document.getElementById('sectorChart');
@@ -2074,15 +2074,18 @@ function _initSectorChart() {
   _secChart._rz = rz;
 }
 
-async function loadSectorChart(ticker, market) {
-  const wrap = document.getElementById('sectorChartWrap');
-  if (!wrap) return;
-  if (!ticker) { wrap.classList.add('hidden'); return; }   // 한국 업종 등 티커 없음 → 차트 없음
-  wrap.classList.remove('hidden');
+async function loadSectorChart(range) {
+  const card = document.getElementById('sectorChartCard');
+  if (!card) return;
+  if (!_secTicker) { card.classList.add('hidden'); return; }   // 한국 업종 등 티커 없음 → 차트 없음
+  if (range) _secRange = range;
+  card.classList.remove('hidden');
+  document.querySelectorAll('#sectorChartCard .sec-range').forEach(b =>
+    b.classList.toggle('active', b.dataset.range === _secRange));
   _initSectorChart();
-  const sym = market === 'us' ? ticker : ticker + '.KS';
+  const sym = _secMarket === 'us' ? _secTicker : _secTicker + '.KS';
   try {
-    const d = await apiFetch(`/chart?symbol=${encodeURIComponent(sym)}&range=1y&interval=1d`);
+    const d = await apiFetch(`/chart?symbol=${encodeURIComponent(sym)}&range=${_secRange}&interval=1d`);
     const times = _chartTimes(d);
     const data = [];
     for (let i = 0; i < (d.close || []).length; i++) {
@@ -2093,15 +2096,21 @@ async function loadSectorChart(ticker, market) {
     let _t = 0;
     const fit = () => { try { _secChart.timeScale().fitContent(); const lr = _secChart.timeScale().getVisibleLogicalRange(); if ((!lr || lr.from > 2) && _t < 15) { _t++; setTimeout(fit, 80); } } catch { if (_t < 15) { _t++; setTimeout(fit, 80); } } };
     requestAnimationFrame(fit);
-  } catch (e) { wrap.classList.add('hidden'); }
+  } catch (e) { card.classList.add('hidden'); }
 }
 
 async function loadSectorDetail(name, market, ticker) {
+  // 차트 카드
+  _secTicker = ticker || null; _secMarket = market;
+  document.getElementById('sectorChartTitle').textContent =
+    `${market === 'us' ? '🇺🇸' : '🇰🇷'} ${name} 차트`;
+  loadSectorChart(_secRange);   // 티커 있으면 차트 표시 (AI와 병행)
+
+  // 전망+뉴스 카드
   const wrap = document.getElementById('sectorDetail');
   wrap.classList.remove('hidden');
   document.getElementById('sectorDetailTitle').textContent =
-    `${market === 'us' ? '🇺🇸' : '🇰🇷'} ${name} 섹터`;
-  loadSectorChart(ticker, market);   // 티커 있으면 차트 표시 (AI와 병행)
+    `${market === 'us' ? '🇺🇸' : '🇰🇷'} ${name} 전망 · 뉴스`;
   const outEl = document.getElementById('sectorOutlook'), newsEl = document.getElementById('sectorNews');
   outEl.textContent = 'AI 전망 분석 중… (검색 포함, 10초 내외)';
   newsEl.innerHTML = '';
@@ -3806,6 +3815,8 @@ if (_mInput) _mInput.addEventListener('keydown', e => { if (e.key === 'Enter') s
 // 섹터
 const _secRefresh = document.getElementById('sectorRefreshBtn');
 if (_secRefresh) _secRefresh.addEventListener('click', () => { document.getElementById('sectorUS').innerHTML = ''; loadSectors(); });
+document.querySelectorAll('#sectorChartCard .sec-range').forEach(b =>
+  b.addEventListener('click', () => loadSectorChart(b.dataset.range)));
 const _secSend = document.getElementById('sectorChatSend');
 if (_secSend) _secSend.addEventListener('click', sendSectorChat);
 const _secInput = document.getElementById('sectorChatInput');
