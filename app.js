@@ -2023,7 +2023,7 @@ function _sPct(v) {
 function _renderSectorMulti(el, title, market, items) {
   if (!el) return;
   const cards = (items || []).map(s => `
-    <div class="macro-card sector-card" data-market="${market}" data-name="${escHtml(s.name)}">
+    <div class="macro-card sector-card" data-market="${market}" data-name="${escHtml(s.name)}" data-ticker="${escHtml(s.ticker || '')}">
       <div class="m-label">${escHtml(s.name)} <span style="color:var(--muted)">${s.ticker || ''}</span></div>
       <div class="m-value" style="font-size:18px">3M ${_sPct(s.m3)}</div>
       <div class="m-meta">1D ${_sPct(s.d1)} · 1M ${_sPct(s.m1)} · YTD ${_sPct(s.ytd)}</div>
@@ -2048,15 +2048,60 @@ function _bindSectorCards(el) {
     c.addEventListener('click', () => {
       document.querySelectorAll('#tab-sector .sector-card').forEach(x => x.classList.remove('active'));
       c.classList.add('active');
-      loadSectorDetail(c.dataset.name, c.dataset.market);
+      loadSectorDetail(c.dataset.name, c.dataset.market, c.dataset.ticker);
     }));
 }
 
-async function loadSectorDetail(name, market) {
+let _secChart = null, _secLine = null;
+function _initSectorChart() {
+  if (_secChart || typeof LightweightCharts === 'undefined') return;
+  const el = document.getElementById('sectorChart');
+  if (!el) return;
+  _secChart = LightweightCharts.createChart(el, {
+    width: el.clientWidth || 600, height: 260,
+    layout: { background: { color: 'transparent' }, textColor: '#8b949e', fontSize: 11 },
+    grid: { vertLines: { color: '#21262d' }, horzLines: { color: '#21262d' } },
+    rightPriceScale: { borderColor: '#30363d' }, timeScale: { borderColor: '#30363d' },
+    crosshair: { mode: LightweightCharts.CrosshairMode.Normal }, localization: { locale: 'ko-KR' },
+  });
+  _secLine = _secChart.addAreaSeries({
+    lineColor: '#2f81f7', topColor: 'rgba(47,129,247,.25)', bottomColor: 'rgba(47,129,247,0)',
+    lineWidth: 2, priceLineVisible: false,
+  });
+  const rz = () => { try { _secChart.resize(el.clientWidth || 600, 260); } catch {} };
+  window.addEventListener('resize', rz);
+  if (window.ResizeObserver) { try { new ResizeObserver(rz).observe(el); } catch {} }
+  _secChart._rz = rz;
+}
+
+async function loadSectorChart(ticker, market) {
+  const wrap = document.getElementById('sectorChartWrap');
+  if (!wrap) return;
+  if (!ticker) { wrap.classList.add('hidden'); return; }   // 한국 업종 등 티커 없음 → 차트 없음
+  wrap.classList.remove('hidden');
+  _initSectorChart();
+  const sym = market === 'us' ? ticker : ticker + '.KS';
+  try {
+    const d = await apiFetch(`/chart?symbol=${encodeURIComponent(sym)}&range=1y&interval=1d`);
+    const times = _chartTimes(d);
+    const data = [];
+    for (let i = 0; i < (d.close || []).length; i++) {
+      if (times[i] && d.close[i] != null) data.push({ time: times[i], value: d.close[i] });
+    }
+    _secLine.setData(data);
+    if (_secChart._rz) _secChart._rz();
+    let _t = 0;
+    const fit = () => { try { _secChart.timeScale().fitContent(); const lr = _secChart.timeScale().getVisibleLogicalRange(); if ((!lr || lr.from > 2) && _t < 15) { _t++; setTimeout(fit, 80); } } catch { if (_t < 15) { _t++; setTimeout(fit, 80); } } };
+    requestAnimationFrame(fit);
+  } catch (e) { wrap.classList.add('hidden'); }
+}
+
+async function loadSectorDetail(name, market, ticker) {
   const wrap = document.getElementById('sectorDetail');
   wrap.classList.remove('hidden');
   document.getElementById('sectorDetailTitle').textContent =
     `${market === 'us' ? '🇺🇸' : '🇰🇷'} ${name} 섹터`;
+  loadSectorChart(ticker, market);   // 티커 있으면 차트 표시 (AI와 병행)
   const outEl = document.getElementById('sectorOutlook'), newsEl = document.getElementById('sectorNews');
   outEl.textContent = 'AI 전망 분석 중… (검색 포함, 10초 내외)';
   newsEl.innerHTML = '';

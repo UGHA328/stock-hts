@@ -284,6 +284,7 @@ body {
 .idx-range.active { background: var(--accent); color: #000; border-color: var(--accent); }
 #idxChart { width: 100%; height: 100%; }
 #macroChart { width: 100%; height: 100%; }
+#sectorChart { width: 100%; height: 100%; }
 
 /* 차트 기간 선택 */
 .chart-range-tabs { display: flex; gap: 6px; margin: 4px 0 8px; flex-wrap: wrap; }

@@ -17,7 +17,7 @@
   <meta name="apple-mobile-web-app-title" content="주식HTS">
   <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
 
-  <link rel="stylesheet" href="./style.css?v=23">
+  <link rel="stylesheet" href="./style.css?v=24">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
 </head>
@@ -294,6 +294,9 @@
         <div id="sectorDetail" class="sector-detail hidden">
           <div class="sector-detail-head" id="sectorDetailTitle"></div>
           <div class="sector-detail-body">
+            <div id="sectorChartWrap" class="hidden" style="margin-bottom:14px">
+              <div class="chart-wrap tall" style="height:280px"><div id="sectorChart"></div></div>
+            </div>
             <div class="sector-outlook-title">📈 AI 전망</div>
             <div id="sectorOutlook" class="sector-outlook"></div>
             <div class="sector-news-title">📰 관련 뉴스</div>
@@ -507,6 +510,6 @@
   </div>
 </div>
 
-<script src="./app.js?v=67"></script>
+<script src="./app.js?v=68"></script>
 </body>
 </html>
