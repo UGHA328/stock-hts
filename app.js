@@ -2443,6 +2443,20 @@ function updateStockHeader(q) {
   document.getElementById('m52L').textContent     = q.week52_low  ? formatPrice(q.week52_low,  mkt, q.currency) : '-';
   document.getElementById('mRoe').textContent     = q.roe        ? q.roe.toFixed(1) + '%'  : '-';
   document.getElementById('mSectorPer').textContent = q.sector_per ? q.sector_per.toFixed(1) + 'x' : '-';
+  // 한국: DART 최신 연간 순이익이 적자면 PER(TTM) 옆에 참고불가 배지
+  if (mkt === 'kr') _loadProfitFlag(q.symbol || currentSymbol);
+}
+
+async function _loadProfitFlag(symbol) {
+  if (!symbol) return;
+  try {
+    const f = await apiFetch(`/api/profit-flag?symbol=${encodeURIComponent(symbol)}`);
+    const el = document.getElementById('mPer');
+    if (f && f.is_loss && el && el.textContent && el.textContent !== '-') {
+      const amt = f.annual != null ? ` (연간순익 ${Math.round(f.annual/1e8).toLocaleString()}억)` : '';
+      el.innerHTML = `${escHtml(el.textContent)} <span style="color:var(--red);font-size:10px;font-weight:700" title="최신 연간 순이익이 적자라 PER은 참고 곤란${amt}">⚠적자</span>`;
+    }
+  } catch {}
 }
 
 /* ── 차트 ── */
