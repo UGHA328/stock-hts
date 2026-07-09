@@ -2938,7 +2938,7 @@ async function runAiDart() {
     }
 
     const isDart = d._source === 'DART';  // 한국 실제 공시
-    const isReal = isDart || d._source === 'YF';  // DART(한국) 또는 yfinance(미국) 실제 재무
+    const isReal = isDart || d._source === 'YF' || d._source === 'SEC';  // 실제 재무(DART/SEC/yfinance)
     const lq = d.latest_quarter || {};
     const ar = d.annual_report || {};
 
@@ -2960,6 +2960,8 @@ async function runAiDart() {
 
     const sourceLabel = d._source === 'DART'
       ? `<span style="color:var(--green);font-weight:700">✅ DART 실제 공시 데이터</span>`
+      : d._source === 'SEC'
+      ? `<span style="color:var(--green);font-weight:700">✅ SEC EDGAR 원문 (미국·10-Q/10-K 보고값)</span>`
       : d._source === 'YF'
       ? `<span style="color:var(--green);font-weight:700">✅ yfinance 실제 재무 (미국·SEC 10-Q/10-K 보고값)</span>`
       : `<span style="color:var(--gold)">⚠ AI 추정값 (DART 미연동 종목)</span>`;
@@ -3008,6 +3010,9 @@ async function runAiDart() {
       <div class="ai-source">출처: ${escHtml(d.source || '')}</div>
       ${!isReal ? `<div class="ai-disclaimer" style="border-color:rgba(248,81,73,.3);background:rgba(248,81,73,.05)">
         ⚠ AI 추정값입니다. 실제 DART 공시와 다를 수 있습니다. 투자 전 반드시 <a href="https://dart.fss.or.kr" target="_blank" style="color:var(--accent)">DART 원문</a>을 확인하세요.
+      </div>` : ''}
+      ${d._source === 'SEC' ? `<div class="ai-disclaimer" style="font-size:11px;color:var(--muted)">
+        ✅ 회사가 SEC에 제출한 <b>10-Q/10-K 원문 XBRL 확정 보고값</b>입니다. 위 '최근 공시'에서 원문(10-Q/10-K)을 직접 확인할 수 있습니다.
       </div>` : ''}
       ${d._source === 'YF' ? `<div class="ai-disclaimer" style="font-size:11px;color:var(--muted)">
         yfinance가 취합한 SEC 보고값 기준입니다. 정확한 원문은 <a href="https://www.sec.gov/edgar/searchedgar/companysearch" target="_blank" style="color:var(--accent)">SEC EDGAR</a>에서 확인하세요.
