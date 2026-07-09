@@ -2331,6 +2331,17 @@ function switchMarket(market) {
     b.classList.toggle('active', b.dataset.market === market));
 }
 
+/* 종목코드로 시장 추론 (백엔드 _is_kr 와 동일 규칙): .KS/.KQ, 6자리 숫자,
+   숫자로 시작하는 6자리 영숫자(국내 ETF 0117V0 등) → KR, 그 외 → US */
+function inferMarket(code) {
+  const c = String(code || '').trim();
+  if (/\.(KS|KQ)$/i.test(c)) return 'kr';
+  const base = c.replace(/\.(KS|KQ)$/i, '');
+  if (/^\d{6}$/.test(base)) return 'kr';
+  if (base.length === 6 && /^\d/.test(base) && /^[0-9A-Za-z]+$/.test(base)) return 'kr';
+  return 'us';
+}
+
 /* ── 검색 ── */
 let _searchSeq = 0;
 async function doSearch(q) {
@@ -2370,6 +2381,10 @@ function hideSearch() { document.getElementById('searchResults').classList.add('
 /* ── 종목 선택 ── */
 async function selectStock(code, name) {
   currentSymbol = code;
+  // 코드로 시장 자동 판별 — US 티커를 KR 토글 상태로 조회해 잘못된(추정) 재무가
+  // 나오는 문제 방지 (전자공시 등 market 파라미터가 정확해지도록)
+  const _mk = inferMarket(code);
+  if (_mk !== currentMarket) switchMarket(_mk);
   document.getElementById('emptyState').classList.add('hidden');
   const detail = document.getElementById('stockDetail');
   detail.classList.remove('hidden');
