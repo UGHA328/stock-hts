@@ -63,6 +63,10 @@
       <span class="nav-icon">💵</span>
       <span class="nav-label">고배당</span>
     </button>
+    <button class="nav-btn" data-tab="div3">
+      <span class="nav-icon">💎</span>
+      <span class="nav-label">고배당2</span>
+    </button>
     <button class="nav-btn" data-tab="rev">
       <span class="nav-icon" style="display:flex;justify-content:center;align-items:center">
         <svg viewBox="0 0 22 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="width:22px;height:18px">
@@ -434,6 +438,31 @@
         <div id="divEmpty" class="empty-msg hidden">데이터를 가져올 수 없습니다. 다시 시도해주세요.</div>
       </div>
 
+      <!-- 고배당2 탭 (전체종목 3년 평균 배당수익률) -->
+      <div id="tab-div3" class="tab-pane hidden">
+        <div class="sc-controls">
+          <div class="sc-market-tabs">
+            <button class="div3-tab" data-m="us">🇺🇸 미국</button>
+            <button class="div3-tab active" data-m="kr">🇰🇷 한국</button>
+          </div>
+          <div class="sc-btns">
+            <button id="div3RunBtn" class="run-btn" style="background:var(--green)">▶ 실행</button>
+            <button id="div3RefreshBtn" class="icon-btn">↺</button>
+          </div>
+        </div>
+        <p class="sc-desc">전체 종목 + 전체 ETF 대상. <b>최근 3개 연도 배당액의 평균</b>을 현재가로 나눈 배당수익률 상위 TOP 10. 연도별 수익률도 함께 표시(특정 연도 일회성 고배당 확인용).</p>
+        <div id="div3Loading" class="sc-loading hidden">
+          <div class="spinner" style="border-top-color:var(--green)"></div>
+          <p id="div3Progress">전체 종목 배당 수집 중...<br><small>전종목 스캔이라 약 2~3분 소요됩니다</small></p>
+          <div style="width:80%;max-width:360px;height:8px;background:rgba(255,255,255,.1);border-radius:4px;margin:12px auto 0;overflow:hidden">
+            <div id="div3Bar" style="height:100%;width:0%;background:var(--green);transition:width .4s"></div>
+          </div>
+        </div>
+        <div id="div3Summary" class="sc-summary hidden"></div>
+        <div id="div3List" class="sc-list hidden"></div>
+        <div id="div3Empty" class="empty-msg hidden">데이터를 가져올 수 없습니다. 다시 시도해주세요.</div>
+      </div>
+
       <!-- 관심종목 탭 -->
       <div id="tab-watch" class="tab-pane hidden">
         <div class="wl-market-tabs">
@@ -521,6 +550,6 @@
   </div>
 </div>
 
-<script src="./app.js?v=74"></script>
+<script src="./app.js?v=75"></script>
 </body>
 </html>
