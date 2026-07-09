@@ -2937,7 +2937,8 @@ async function runAiDart() {
       document.getElementById('aiModalContent').innerHTML = `<p style="color:var(--red)">${escHtml(d.raw || d.error)}</p>`; return;
     }
 
-    const isDart = d._source === 'DART';  // 실제 DART vs AI 추정
+    const isDart = d._source === 'DART';  // 한국 실제 공시
+    const isReal = isDart || d._source === 'YF';  // DART(한국) 또는 yfinance(미국) 실제 재무
     const lq = d.latest_quarter || {};
     const ar = d.annual_report || {};
 
@@ -2957,8 +2958,10 @@ async function runAiDart() {
     const keyPoints    = (ar.key_points  || []).map(k => `<li>${escHtml(k)}</li>`).join('');
     const risks        = (d.major_risks  || []).map(r => `<li style="color:var(--red)">${escHtml(r)}</li>`).join('');
 
-    const sourceLabel = isDart
+    const sourceLabel = d._source === 'DART'
       ? `<span style="color:var(--green);font-weight:700">✅ DART 실제 공시 데이터</span>`
+      : d._source === 'YF'
+      ? `<span style="color:var(--green);font-weight:700">✅ yfinance 실제 재무 (미국·SEC 10-Q/10-K 보고값)</span>`
       : `<span style="color:var(--gold)">⚠ AI 추정값 (DART 미연동 종목)</span>`;
 
     // 전년비 배지
@@ -2998,13 +3001,16 @@ async function runAiDart() {
       ${keyPoints ? `<ul class="ai-list">${keyPoints}</ul>` : ''}
       ${d.business_outlook ? `<div class="ai-section-title" style="margin-top:16px">🔭 사업 전망</div><div class="ai-impact">${escHtml(d.business_outlook)}</div>` : ''}
       ${risks ? `<ul class="ai-list ai-risk-list">${risks}</ul>` : ''}
-      ${disclosures ? `<div class="ai-section-title" style="margin-top:16px">📄 최근 공시${isDart ? ' (실제)' : ''}</div>${disclosures}` : ''}
+      ${disclosures ? `<div class="ai-section-title" style="margin-top:16px">📄 최근 공시${isReal ? ' (실제)' : ''}</div>${disclosures}` : ''}
       ${d.ai_opinion ? `
       <div class="ai-section-title" style="margin-top:16px">🤖 AI 재무의견</div>
       <div class="ai-impact" style="border-left-color:var(--violet)">${escHtml(d.ai_opinion)}</div>` : ''}
       <div class="ai-source">출처: ${escHtml(d.source || '')}</div>
-      ${!isDart ? `<div class="ai-disclaimer" style="border-color:rgba(248,81,73,.3);background:rgba(248,81,73,.05)">
+      ${!isReal ? `<div class="ai-disclaimer" style="border-color:rgba(248,81,73,.3);background:rgba(248,81,73,.05)">
         ⚠ AI 추정값입니다. 실제 DART 공시와 다를 수 있습니다. 투자 전 반드시 <a href="https://dart.fss.or.kr" target="_blank" style="color:var(--accent)">DART 원문</a>을 확인하세요.
+      </div>` : ''}
+      ${d._source === 'YF' ? `<div class="ai-disclaimer" style="font-size:11px;color:var(--muted)">
+        yfinance가 취합한 SEC 보고값 기준입니다. 정확한 원문은 <a href="https://www.sec.gov/edgar/searchedgar/companysearch" target="_blank" style="color:var(--accent)">SEC EDGAR</a>에서 확인하세요.
       </div>` : ''}`;
 
     // ── 공시 데이터 기반 채팅 섹션 추가 ──
