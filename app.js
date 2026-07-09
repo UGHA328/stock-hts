@@ -2709,8 +2709,10 @@ async function selectStock(code, name) {
   }
 }
 
+let _curPrice = null;   // 현재 종목 현재가(분배금 수익률 계산 등에 사용)
 function updateStockHeader(q) {
   if (!q) return;
+  _curPrice = q.price || null;
   // 통화는 시장 토글이 아니라 quote의 currency로 판정 (KR 토글에서 미국 종목 봐도 $ 표시)
   const mkt = q.currency === 'USD' ? 'us' : (q.currency === 'KRW' ? 'kr' : currentMarket);
   const chg  = q.change || 0;
@@ -3235,7 +3237,7 @@ async function runAiDart() {
   try {
     const d = await fetch(SERVER + '/ai/dart', {
       method: 'POST', headers: { ...HDR, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ symbol: currentSymbol, name, market: currentMarket }),
+      body: JSON.stringify({ symbol: currentSymbol, name, market: currentMarket, price: _curPrice }),
     }).then(r => r.json());
     _setAiProvider(d);
 
@@ -3258,6 +3260,24 @@ async function runAiDart() {
         <div class="ai-news-meta">${escHtml(dc.date || '')}${dc.summary ? ' · ' + escHtml(dc.summary) : ''}</div>
       </div>`;
     }).join('');
+
+    // 실제 분배금(배당) 내역 — yfinance (DART엔 ETF 분배금 없음)
+    let distHtml = '';
+    if (d.distributions && (d.distributions.items || []).length) {
+      const dt = d.distributions;
+      const rows = dt.items.map(x =>
+        `<div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;border-bottom:1px solid rgba(255,255,255,.05)">
+          <span style="color:var(--muted)">${escHtml(x.date)}</span>
+          <strong>${Number(x.amount).toLocaleString('ko-KR')}원</strong>
+        </div>`).join('');
+      distHtml = `<div class="ai-section-title" style="margin-top:16px">💰 실제 분배금(배당) 내역 <span style="font-size:10px;color:var(--muted)">(yfinance)</span></div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:6px">
+          최근 1년 합계 <strong style="color:var(--green)">${Number(dt.ttm_sum).toLocaleString('ko-KR')}원</strong>
+          ${dt.ttm_yield != null ? ` · 현재가 대비 <strong style="color:var(--green)">${dt.ttm_yield.toFixed(2)}%</strong>` : ''}
+          ${dt.count_ttm ? ` · 최근 1년 ${dt.count_ttm}회 지급` : ''}
+        </div>
+        <div style="max-height:230px;overflow-y:auto;padding-right:6px">${rows}</div>`;
+    }
 
     // AI 추정값인 경우 기존 필드 처리
     const lqHighlights = (lq.highlights || []).map(k => `<li>${escHtml(k)}</li>`).join('');
@@ -3309,6 +3329,7 @@ async function runAiDart() {
       ${keyPoints ? `<ul class="ai-list">${keyPoints}</ul>` : ''}
       ${d.business_outlook ? `<div class="ai-section-title" style="margin-top:16px">🔭 사업 전망</div><div class="ai-impact">${escHtml(d.business_outlook)}</div>` : ''}
       ${risks ? `<ul class="ai-list ai-risk-list">${risks}</ul>` : ''}
+      ${distHtml}
       ${disclosures ? `<div class="ai-section-title" style="margin-top:16px">📄 최근 공시${isReal ? ' (실제)' : ''}</div>${disclosures}` : ''}
       ${d.ai_opinion ? `
       <div class="ai-section-title" style="margin-top:16px">🤖 AI 재무의견</div>
@@ -3342,6 +3363,9 @@ async function runAiDart() {
       (d.major_risks||[]).length ? `주요 위험: ${d.major_risks.join(' / ')}` : '',
       d.business_outlook ? `사업 전망: ${d.business_outlook}` : '',
       (d.recent_disclosures||[]).length ? `최근 공시:\n${d.recent_disclosures.map(x=>`  - ${x.date} ${x.title}`).join('\n')}` : '',
+      (d.distributions && (d.distributions.items||[]).length)
+        ? `실제 분배금(배당) 내역 [yfinance, 배당락일 기준] — 최근1년 합계 ${d.distributions.ttm_sum}원${d.distributions.ttm_yield!=null?`(현재가 대비 ${d.distributions.ttm_yield}%)`:''}, 최근1년 ${d.distributions.count_ttm||''}회:\n${d.distributions.items.map(x=>`  - ${x.date}: ${x.amount}원`).join('\n')}`
+        : '',
       d.ai_opinion ? `AI 재무의견: ${d.ai_opinion}` : '',
     ].filter(Boolean).join('\n');
     _dartChatHistory = [];
