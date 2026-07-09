@@ -2094,6 +2094,104 @@ function renderDiv3(d, market) {
   list.classList.remove('hidden');
 }
 
+/* ── 스팩 만기 이자수익률 스크리너 ── */
+let _spacPoll = null;
+
+async function runSpacScreener(refresh = false) {
+  const btn  = document.getElementById('spacRunBtn');
+  const load = document.getElementById('spacLoading');
+  const list = document.getElementById('spacList');
+  const sum  = document.getElementById('spacSummary');
+  const emp  = document.getElementById('spacEmpty');
+  const prog = document.getElementById('spacProgress');
+  if (_spacPoll) { clearTimeout(_spacPoll); _spacPoll = null; }
+
+  btn.disabled = true; btn.textContent = '⏳ 조회 중...';
+  [list, sum, emp].forEach(el => el.classList.add('hidden'));
+  load.classList.remove('hidden');
+
+  let first = refresh;
+  const poll = async () => {
+    try {
+      const qs = first ? '?refresh=true' : '';
+      first = false;
+      const d = await apiFetch(`/api/spac${qs}`);
+      if (d.status === 'building') {
+        prog.innerHTML = `스팩 정보 수집 중... ${d.progress}/${d.total || '?'}`;
+        _spacPoll = setTimeout(poll, 2000);
+        return;
+      }
+      load.classList.add('hidden');
+      btn.disabled = false; btn.textContent = '▶ 실행';
+      if (d.status === 'error' || !d.results || !d.results.length) {
+        emp.classList.remove('hidden');
+        emp.textContent = d.error ? ('오류: ' + d.error) : '데이터를 가져올 수 없습니다. 다시 시도해주세요.';
+        return;
+      }
+      renderSpac(d);
+    } catch (e) {
+      load.classList.add('hidden');
+      btn.disabled = false; btn.textContent = '▶ 실행';
+      emp.classList.remove('hidden'); emp.textContent = '오류: ' + e.message;
+      console.error('스팩 오류:', e);
+    }
+  };
+  poll();
+}
+
+function _dday(days) {
+  if (days == null) return '-';
+  const y = Math.floor(days / 365), m = Math.round((days % 365) / 30);
+  let s = '';
+  if (y > 0) s += y + '년 ';
+  if (m > 0) s += m + '개월';
+  return (s.trim() || days + '일') + ` (D-${days})`;
+}
+
+function renderSpac(d) {
+  const results = d.results || [];
+  const sum  = document.getElementById('spacSummary');
+  const list = document.getElementById('spacList');
+
+  sum.innerHTML = `<strong>${results.length}개</strong> 스팩 · 만기 상환 추정 수익률순
+    &nbsp;|&nbsp; <span style="color:var(--muted)">📅 데이터 기준: ${escHtml(d.computed_at || '-')} 현재</span>`;
+  sum.classList.remove('hidden');
+
+  list.innerHTML = results.map((it, i) => {
+    const price = Math.round(it.price).toLocaleString('ko-KR');
+    const redem = Math.round(it.redemption).toLocaleString('ko-KR');
+    const yieldCls = it.ytm_annual >= 7 ? 'div-yield-high' : it.ytm_annual >= 4 ? 'div-yield-mid' : 'div-yield-low';
+    const yaColor  = it.ytm_annual >= 0 ? 'var(--green)' : 'var(--red)';
+    return `<div class="div-card" data-code="${it.ticker}.KQ" data-name="${escHtml(it.name)}">
+      <div class="div-rank">${i + 1}</div>
+      <div class="div-info">
+        <div class="div-name">${escHtml(it.name)}</div>
+        <div class="div-sub">${escHtml(it.ticker)} · 만기 ${escHtml(it.maturity)} · <span style="color:var(--gold)">${_dday(it.remaining_days)}</span></div>
+        <div style="margin-top:4px;font-size:12px;color:var(--muted)">
+          현재 <b style="color:var(--text)">${price}원</b> → 만기상환 <b style="color:var(--text)">${redem}원</b>
+          <span style="color:var(--muted)">(이자 +${it.interest.toLocaleString('ko-KR')}원 · ${escHtml(it.source)})</span>
+        </div>
+      </div>
+      <div class="div-right">
+        <div class="${yieldCls}" style="color:${yaColor}">연 ${it.ytm_annual != null ? it.ytm_annual.toFixed(2) : '-'}%</div>
+        <div style="font-size:11px;color:var(--muted)">총 ${it.ytm_total.toFixed(2)}%</div>
+        <div style="font-size:10px;color:var(--muted)">추정 수익률</div>
+      </div>
+    </div>`;
+  }).join('');
+
+  list.querySelectorAll('.div-card').forEach(card => {
+    card.addEventListener('click', e => {
+      if (e.target.closest('button')) return;
+      currentMarket = 'kr';
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.market === 'kr'));
+      switchTab('home');
+      selectStock(card.dataset.code, card.dataset.name);
+    });
+  });
+  list.classList.remove('hidden');
+}
+
 /* ── 탭 전환 ── */
 function switchTab(tabId) {
   document.querySelectorAll('.tab-pane').forEach(p =>
@@ -2107,6 +2205,7 @@ function switchTab(tabId) {
   if (tabId === 'macro' && !document.querySelector('#macroUS .macro-card')) loadMacro();
   if (tabId === 'sector' && !document.querySelector('#sectorUS .macro-card')) loadSectors();
   if (tabId === 'div3' && !document.querySelector('#div3List .div-card')) runDiv3Screener(false);
+  if (tabId === 'spac' && !document.querySelector('#spacList .div-card')) runSpacScreener(false);
 }
 
 /* ── 섹터 (미국 ETF 다기간 + 한국 업종 + 섹터별 AI 전망/뉴스) ── */
@@ -2986,6 +3085,9 @@ document.querySelectorAll('.div3-tab').forEach(btn => {
 });
 document.getElementById('div3RunBtn').addEventListener('click', () => runDiv3Screener(false));
 document.getElementById('div3RefreshBtn').addEventListener('click', () => runDiv3Screener(true));
+
+document.getElementById('spacRunBtn').addEventListener('click', () => runSpacScreener(false));
+document.getElementById('spacRefreshBtn').addEventListener('click', () => runSpacScreener(true));
 
 document.querySelectorAll('.wl-tab').forEach(btn => {
   btn.addEventListener('click', () => {
