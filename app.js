@@ -2153,7 +2153,10 @@ function renderSpac(d) {
   const sum  = document.getElementById('spacSummary');
   const list = document.getElementById('spacList');
 
-  sum.innerHTML = `<strong>${results.length}개</strong> 스팩 · 만기 상환 추정 수익률순
+  const nReal = results.filter(r => r.source === 'DART').length;
+  const nEst  = results.length - nReal;
+  sum.innerHTML = `<strong>${results.length}개</strong> 스팩 · 수익률순
+    &nbsp;|&nbsp; <span style="color:var(--green)">✅ 실제 ${nReal}</span> · <span style="color:var(--gold)">추정 ${nEst}</span>
     &nbsp;|&nbsp; <span style="color:var(--muted)">📅 데이터 기준: ${escHtml(d.computed_at || '-')} 현재</span>`;
   sum.classList.remove('hidden');
 
@@ -2162,6 +2165,10 @@ function renderSpac(d) {
     const redem = Math.round(it.redemption).toLocaleString('ko-KR');
     const yieldCls = it.ytm_annual >= 7 ? 'div-yield-high' : it.ytm_annual >= 4 ? 'div-yield-mid' : 'div-yield-low';
     const yaColor  = it.ytm_annual >= 0 ? 'var(--green)' : 'var(--red)';
+    const isReal = it.source === 'DART';
+    const badge = isReal
+      ? `<span style="display:inline-block;font-size:10px;padding:1px 6px;border-radius:5px;background:rgba(63,185,80,.15);color:var(--green);font-weight:700">✅ 실제(DART${it.nav_asof ? ' ' + escHtml(String(it.nav_asof).replace(/[^0-9.]/g, '').slice(0,7)) : ''})</span>`
+      : `<span style="display:inline-block;font-size:10px;padding:1px 6px;border-radius:5px;background:rgba(240,180,40,.15);color:var(--gold);font-weight:700">추정</span>`;
     return `<div class="div-card" data-code="${it.ticker}.KQ" data-name="${escHtml(it.name)}">
       <div class="div-rank">${i + 1}</div>
       <div class="div-info">
@@ -2169,7 +2176,7 @@ function renderSpac(d) {
         <div class="div-sub">${escHtml(it.ticker)} · 만기 ${escHtml(it.maturity)} · <span style="color:var(--gold)">${_dday(it.remaining_days)}</span></div>
         <div style="margin-top:4px;font-size:12px;color:var(--muted)">
           현재 <b style="color:var(--text)">${price}원</b> → 만기상환 <b style="color:var(--text)">${redem}원</b>
-          <span style="color:var(--muted)">(이자 +${it.interest.toLocaleString('ko-KR')}원 · ${escHtml(it.source)})</span>
+          <span style="color:var(--muted)">(이자 +${it.interest.toLocaleString('ko-KR')}원)</span> ${badge}
         </div>
       </div>
       <div class="div-right">
