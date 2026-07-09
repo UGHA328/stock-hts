@@ -2053,31 +2053,40 @@ function renderDiv3(d, market) {
     const price = isKr
       ? Math.round(it.price).toLocaleString('ko-KR') + '원'
       : '$' + Number(it.price).toLocaleString('en-US', { minimumFractionDigits: 2 });
-    const ys   = years.map(y => ({ y, v: Number((it.per_year || {})[y] || 0) }));
-    const vals = ys.map(o => o.v);
-    const maxv = Math.max(...vals, 0);
-    const rest = vals.reduce((a, b) => a + b, 0) - maxv;
-    const nPos = vals.filter(v => v > 0).length;
-    const oneOff = maxv > 0 && nPos >= 2 && maxv >= rest * 1.5;   // 한 해가 압도 → 일회성
-    const pills = ys.map(o => {
-      const hot = oneOff && o.v === maxv;
+    const oneoffY = it.oneoff_year;
+    const pills = years.map(y => {
+      const v = Number((it.per_year || {})[y] || 0);
+      const hot = oneoffY && Number(y) === Number(oneoffY);
       return `<span style="display:inline-block;font-size:11px;padding:2px 7px;margin:2px 3px 0 0;border-radius:6px;
         background:${hot ? 'rgba(240,180,40,.18)' : 'rgba(255,255,255,.07)'};
-        color:${hot ? 'var(--gold)' : 'var(--muted)'};${hot ? 'font-weight:700' : ''}">${o.y} ${o.v.toFixed(2)}%</span>`;
+        color:${hot ? 'var(--gold)' : 'var(--muted)'};${hot ? 'font-weight:700' : ''}">${y} ${v.toFixed(2)}%</span>`;
     }).join('');
     const yieldCls = it.yield3 >= 8 ? 'div-yield-high' : it.yield3 >= 5 ? 'div-yield-mid' : 'div-yield-low';
     const code = it.ticker + (isKr ? _div3Suffix(it.market) : '');
+    // 배당 추세
+    const trend = it.trend === 'up' ? '<span style="color:var(--green)">▲ 배당증가</span>'
+      : it.trend === 'down' ? '<span style="color:var(--red)">▼ 배당감소</span>'
+      : it.trend === 'mixed' ? '<span style="color:var(--muted)">↕ 혼조</span>' : '';
+    // 거래정지·관리종목 배지
+    const statusBadge = it.status
+      ? `<span style="font-size:10px;font-weight:700;padding:1px 6px;border-radius:5px;margin-left:5px;background:rgba(248,81,73,.15);color:var(--red)">⛔ ${escHtml(it.status)}</span>`
+      : '';
+    // 경상배당(일회성 제외) 병기
+    const recurLine = (oneoffY && it.recurring_yield != null)
+      ? `<div style="font-size:10px;color:var(--gold)">경상 ${it.recurring_yield.toFixed(2)}%</div>`
+      : '';
     return `<div class="div-card" data-code="${code}" data-name="${escHtml(it.name)}" data-mk="${isKr ? 'kr' : 'us'}">
       <div class="div-rank">${i + 1}</div>
       <div class="div-info">
-        <div class="div-name">${escHtml(it.name)}${oneOff ? ' <span style="font-size:10px;color:var(--gold)">⚠일회성</span>' : ''}</div>
-        <div class="div-sub">${escHtml(it.ticker)} · ${escHtml(it.market || '')}</div>
+        <div class="div-name">${escHtml(it.name)}${oneoffY ? ' <span style="font-size:10px;color:var(--gold)">⚠일회성</span>' : ''}${statusBadge}</div>
+        <div class="div-sub">${escHtml(it.ticker)} · ${escHtml(it.market || '')}${trend ? ' · ' + trend : ''}</div>
         <div style="margin-top:4px">${pills}</div>
       </div>
       <div class="div-right">
         <div class="${yieldCls}">${it.yield3.toFixed(2)}%</div>
+        ${recurLine}
         <div class="div-price">${price}</div>
-        <div style="font-size:10px;color:var(--muted)">3년평균</div>
+        <div style="font-size:10px;color:var(--muted)">3년평균${oneoffY ? '·경상' : ''}</div>
         <button class="div3-risk-btn" data-idx="${i}" style="margin-top:6px;font-size:11px;padding:3px 8px;border-radius:6px;border:1px solid var(--violet);background:rgba(139,92,246,.12);color:var(--violet);cursor:pointer">🔍 리스크</button>
       </div>
     </div>`;
