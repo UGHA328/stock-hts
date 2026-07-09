@@ -2039,12 +2039,14 @@ function _div3Suffix(mk) {
 function renderDiv3(d, market) {
   const isKr = market === 'kr';
   const years = d.years || [];
-  const results = (d.results || []).slice(0, 10);
+  const results = (d.results || []).slice(0, 30);
   const sum  = document.getElementById('div3Summary');
   const list = document.getElementById('div3List');
+  _div3Last = { results, market, years };
 
   sum.innerHTML = `<strong>TOP ${results.length}</strong> · 3년 평균 배당수익률(현재가 대비) 기준
-    &nbsp;|&nbsp; <span style="color:var(--muted)">📅 데이터 기준: ${escHtml(d.computed_at || '-')} 현재</span>`;
+    &nbsp;|&nbsp; <span style="color:var(--muted)">📅 데이터 기준: ${escHtml(d.computed_at || '-')} 현재</span>
+    <div style="margin-top:4px;font-size:11px;color:var(--muted)">🔍 각 종목의 <b>리스크</b> 버튼: 급락 이유·존립/배당 위험·저평가 여부를 AI가 뉴스 기반으로 분석</div>`;
   sum.classList.remove('hidden');
 
   list.innerHTML = results.map((it, i) => {
@@ -2076,6 +2078,7 @@ function renderDiv3(d, market) {
         <div class="${yieldCls}">${it.yield3.toFixed(2)}%</div>
         <div class="div-price">${price}</div>
         <div style="font-size:10px;color:var(--muted)">3년평균</div>
+        <button class="div3-risk-btn" data-idx="${i}" style="margin-top:6px;font-size:11px;padding:3px 8px;border-radius:6px;border:1px solid var(--violet);background:rgba(139,92,246,.12);color:var(--violet);cursor:pointer">🔍 리스크</button>
       </div>
     </div>`;
   }).join('');
@@ -2091,7 +2094,50 @@ function renderDiv3(d, market) {
       selectStock(card.dataset.code, card.dataset.name);
     });
   });
+  list.querySelectorAll('.div3-risk-btn').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      analyzeDivRisk(results[+btn.dataset.idx], market);
+    });
+  });
   list.classList.remove('hidden');
+}
+
+let _div3Last = null;
+
+async function analyzeDivRisk(it, market) {
+  if (!it) return;
+  openAiModal('🔍 리스크 분석 — ' + it.name);
+  const box = document.getElementById('aiModalContent');
+  box.innerHTML = `<div style="color:var(--muted);padding:10px">최신 뉴스·공시를 검색해 리스크를 분석 중입니다…<br><small>급락 이유 · 존립/배당 위험 · 저평가 여부</small></div>`;
+  try {
+    const d = await fetch(SERVER + '/ai/div-risk', {
+      method: 'POST', headers: { ...HDR, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        symbol: it.ticker + (market === 'kr' ? _div3Suffix(it.market) : ''),
+        name: it.name, market, yield3: it.yield3, per_year: it.per_year, price: it.price,
+      }),
+    }).then(r => r.json());
+    _setAiProvider && _setAiProvider(d);
+    if (d.error) { box.innerHTML = `<p style="color:var(--red)">오류: ${escHtml(d.error)}</p>`; return; }
+    // 【..】 섹션 볼드 + 저평가/가치함정 색 강조
+    let html = escHtml(d.analysis || '분석 결과가 없습니다.')
+      .replace(/【([^】]+)】/g, '<div class="ai-section-title" style="margin-top:12px;color:var(--gold)">$1</div>')
+      .replace(/저평가/g, '<b style="color:var(--green)">저평가</b>')
+      .replace(/가치함정/g, '<b style="color:var(--red)">가치함정</b>')
+      .replace(/(위험성[^\n:]*[:：]?\s*)(높음)/g, '$1<b style="color:var(--red)">높음</b>')
+      .replace(/\n/g, '<br>');
+    const news = (d.news || []).map(n =>
+      `<div class="ai-news-item"><a href="${escHtml(n.url)}" target="_blank" style="color:var(--accent)">${escHtml(n.title)} →</a></div>`
+    ).join('');
+    box.innerHTML = `<div style="margin-bottom:8px;font-size:12px;color:var(--muted)">
+        ${escHtml(it.name)} (${escHtml(it.ticker)}) · 3년평균 배당수익률 ${it.yield3.toFixed(2)}%</div>
+      <div class="ai-impact">${html}</div>
+      ${news ? `<div class="ai-section-title" style="margin-top:14px">📰 관련 뉴스</div>${news}` : ''}
+      <div class="ai-disclaimer" style="margin-top:12px;font-size:11px;color:var(--muted)">AI가 뉴스·공시 검색으로 작성한 참고 의견입니다. 투자 판단·책임은 본인에게 있습니다.</div>`;
+  } catch (e) {
+    box.innerHTML = `<p style="color:var(--red)">오류: ${escHtml(e.message)}</p>`;
+  }
 }
 
 /* ── 스팩 만기 이자수익률 스크리너 ── */
@@ -2153,7 +2199,7 @@ function renderSpac(d) {
   const sum  = document.getElementById('spacSummary');
   const list = document.getElementById('spacList');
 
-  const nReal = results.filter(r => r.source === 'DART').length;
+  const nReal = results.filter(r => r.source === '실제').length;
   const nEst  = results.length - nReal;
   sum.innerHTML = `<strong>${results.length}개</strong> 스팩 · 수익률순
     &nbsp;|&nbsp; <span style="color:var(--green)">✅ 실제 ${nReal}</span> · <span style="color:var(--gold)">추정 ${nEst}</span>
@@ -2165,9 +2211,9 @@ function renderSpac(d) {
     const redem = Math.round(it.redemption).toLocaleString('ko-KR');
     const yieldCls = it.ytm_annual >= 7 ? 'div-yield-high' : it.ytm_annual >= 4 ? 'div-yield-mid' : 'div-yield-low';
     const yaColor  = it.ytm_annual >= 0 ? 'var(--green)' : 'var(--red)';
-    const isReal = it.source === 'DART';
+    const isReal = it.source === '실제';
     const badge = isReal
-      ? `<span style="display:inline-block;font-size:10px;padding:1px 6px;border-radius:5px;background:rgba(63,185,80,.15);color:var(--green);font-weight:700">✅ 실제(DART${it.nav_asof ? ' ' + escHtml(String(it.nav_asof).replace(/[^0-9.]/g, '').slice(0,7)) : ''})</span>`
+      ? `<span style="display:inline-block;font-size:10px;padding:1px 6px;border-radius:5px;background:rgba(63,185,80,.15);color:var(--green);font-weight:700">✅ 실제(예치금${it.nav_asof ? ' ' + escHtml(String(it.nav_asof).replace(/[^0-9.]/g, '').slice(0,7)) : ''})</span>`
       : `<span style="display:inline-block;font-size:10px;padding:1px 6px;border-radius:5px;background:rgba(240,180,40,.15);color:var(--gold);font-weight:700">추정</span>`;
     return `<div class="div-card" data-code="${it.ticker}.KQ" data-name="${escHtml(it.name)}">
       <div class="div-rank">${i + 1}</div>
