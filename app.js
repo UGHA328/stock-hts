@@ -2426,9 +2426,12 @@ async function runServerScreen(strategy) {
 
 /* ── 전략 백테스트 ── */
 let _btChart = null, _btStrat = null, _btBh = null;
-function _initBtChart() {
+function _resetBtChart() {
+  // 항상 새로 그림 (단일=2선, 비교=N선을 유연하게 다루기 위해 매번 재생성)
   const el = document.getElementById('btChart');
-  if (!el || _btChart || typeof LightweightCharts === 'undefined') return;
+  if (_btChart) { try { window.removeEventListener('resize', _btChart._resizeFn); _btChart.remove(); } catch {} }
+  _btChart = null; _btStrat = null; _btBh = null;
+  if (!el || typeof LightweightCharts === 'undefined') return null;
   _btChart = LightweightCharts.createChart(el, {
     width: el.clientWidth || 600, height: 300,
     layout: { background: { color: 'transparent' }, textColor: '#8b949e', fontSize: 11 },
@@ -2436,12 +2439,26 @@ function _initBtChart() {
     rightPriceScale: { borderColor: '#30363d' }, timeScale: { borderColor: '#30363d' },
     crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
   });
-  _btStrat = _btChart.addLineSeries({ color: '#3fb950', lineWidth: 2, priceLineVisible: false });
-  _btBh = _btChart.addLineSeries({ color: '#8b949e', lineWidth: 1.5, lineStyle: LightweightCharts.LineStyle.Dashed, priceLineVisible: false });
   _btChart._resizeFn = () => { try { _btChart.resize(el.clientWidth || 600, 300); } catch {} };
   window.addEventListener('resize', _btChart._resizeFn);
+  return _btChart;
+}
+function _initBtChart() {
+  if (!_resetBtChart()) return;
+  _btStrat = _btChart.addLineSeries({ color: '#3fb950', lineWidth: 2, priceLineVisible: false });
+  _btBh = _btChart.addLineSeries({ color: '#8b949e', lineWidth: 1.5, lineStyle: LightweightCharts.LineStyle.Dashed, priceLineVisible: false });
 }
 const BT_STRAT_DESC = {
+  'adaptive': {
+    t: '🧭 적응형 (국면 자동전환)',
+    how: '종목이 지금 <b>상승·횡보·하락 중 어느 국면인지 매일 판정</b>해, 국면에 맞는 전략으로 스스로 갈아탑니다. "상승장엔 추세추종, 횡보장엔 저점매수, 하락장엔 현금".',
+    rules: [
+      '<b>상승국면</b>(200일선 위 + 200일선 상승) → <b>추세추종</b>: 정배열이면 보유, 과열(RSI&gt;85) 시 이탈',
+      '<b>횡보국면</b>(방향성 없음) → <b>평균회귀</b>: 볼린저 하단 매수 / 상단 매도',
+      '<b>하락국면</b>(200일선 아래 + 200일선 하락) → <b>현금 보유</b>(손실 회피)',
+    ],
+    tip: '한 가지 전략은 특정 장세에서만 강합니다. 적응형은 국면을 읽어 전략을 바꾸므로 다양한 장세에 두루 견고합니다. 다만 국면 전환 시점엔 다소 늦을 수 있습니다.',
+  },
   '2425': {
     t: '⭐ 2425 전략 (혼합 · 추천)',
     how: '여러 지표를 결합해 <b>상승추세에서만 보유하고 하락장은 피하는</b> 것을 목표로 한 복합 전략입니다.',
@@ -2509,11 +2526,13 @@ async function runBacktest() {
   const period = document.getElementById('btPeriod').value;
   const load = document.getElementById('btLoading'), stats = document.getElementById('btStats');
   const cw = document.getElementById('btChartWrap'), emp = document.getElementById('btEmpty');
-  const exp = document.getElementById('btExplain');
+  const exp = document.getElementById('btExplain'), cmp = document.getElementById('btCmpStats');
   const btn = document.getElementById('btRun');
   btn.disabled = true; btn.textContent = '⏳';
-  [stats, cw, emp, exp].forEach(e => e.classList.add('hidden'));
+  [stats, cw, emp, exp, cmp].forEach(e => e.classList.add('hidden'));
   load.classList.remove('hidden');
+  document.getElementById('btLegend').innerHTML =
+    '<span style="color:#3fb950">■</span> 전략 &nbsp; <span style="color:#8b949e">■</span> 매수후보유 (초기자본=1.0)';
   try {
     const d = await apiFetch(`/api/backtest?symbol=${encodeURIComponent(sym)}&strategy=${strat}&period=${period}`);
     load.classList.add('hidden'); btn.disabled = false; btn.textContent = '▶ 실행';
@@ -2544,6 +2563,61 @@ async function runBacktest() {
     renderBtExplain(d);
   } catch (e) {
     load.classList.add('hidden'); btn.disabled = false; btn.textContent = '▶ 실행';
+    emp.textContent = '오류: ' + e.message; emp.classList.remove('hidden');
+  }
+}
+
+async function runCompare() {
+  const sym = document.getElementById('btSymbol').value.trim();
+  if (!sym) { toast('티커/코드를 입력하세요'); return; }
+  const period = document.getElementById('btPeriod').value;
+  const picks = Array.from(document.querySelectorAll('#btCmpChecks input:checked')).map(c => c.value);
+  if (picks.length < 2) { toast('비교하려면 2개 이상 선택하세요'); return; }
+  const load = document.getElementById('btLoading'), stats = document.getElementById('btStats');
+  const cw = document.getElementById('btChartWrap'), emp = document.getElementById('btEmpty');
+  const exp = document.getElementById('btExplain'), cmp = document.getElementById('btCmpStats');
+  const btn = document.getElementById('btCmpRun');
+  btn.disabled = true; btn.textContent = '⏳';
+  [stats, cw, emp, exp, cmp].forEach(e => e.classList.add('hidden'));
+  load.classList.remove('hidden');
+  try {
+    const d = await apiFetch(`/api/backtest/compare?symbol=${encodeURIComponent(sym)}&strategies=${picks.join(',')}&period=${period}`);
+    load.classList.add('hidden'); btn.disabled = false; btn.textContent = '🆚 비교 실행';
+    if (d.error) { emp.textContent = '오류: ' + d.error; emp.classList.remove('hidden'); return; }
+    // 최고 성과 강조용
+    const best = (key, hi = true) => d.series.reduce((a, b) => (hi ? b[key] > a[key] : b[key] < a[key]) ? b : a).strategy;
+    const bestRet = best('total_return'), bestMdd = best('mdd', false), bestShp = best('sharpe');
+    const c = v => v >= 0 ? 'var(--green)' : 'var(--red)';
+    const sg = v => (v >= 0 ? '+' : '') + v + '%';
+    const hl = (st, target) => st === target ? 'font-weight:800;text-decoration:underline' : '';
+    cmp.innerHTML = `<div style="font-size:13px;margin-bottom:6px"><b>${escHtml(d.name || d.symbol)}</b>${d.name && d.name !== d.symbol ? ` <span style="color:var(--muted)">(${escHtml(d.symbol)})</span>` : ''} · ${escHtml(d.from)}~${escHtml(d.to)} · 전략 ${d.series.length}종 비교</div>
+      <table style="width:100%;border-collapse:collapse;font-size:12.5px;min-width:520px">
+        <thead><tr style="color:var(--muted);text-align:right;border-bottom:1px solid var(--border)">
+          <th style="text-align:left;padding:5px 6px">전략</th><th style="padding:5px 6px">수익률</th><th style="padding:5px 6px">CAGR</th><th style="padding:5px 6px">MDD</th><th style="padding:5px 6px">샤프</th><th style="padding:5px 6px">매매/승률</th></tr></thead>
+        <tbody>${d.series.map(s => `<tr style="text-align:right;border-bottom:1px solid var(--border)">
+          <td style="text-align:left;padding:5px 6px"><span style="color:${s.color}">■</span> ${escHtml(s.strategy_name)}</td>
+          <td style="padding:5px 6px;color:${c(s.total_return)};${hl(s.strategy, bestRet)}">${sg(s.total_return)}</td>
+          <td style="padding:5px 6px;color:${c(s.cagr)}">${sg(s.cagr)}</td>
+          <td style="padding:5px 6px;color:var(--red);${hl(s.strategy, bestMdd)}">${s.mdd}%</td>
+          <td style="padding:5px 6px;${hl(s.strategy, bestShp)}">${s.sharpe}</td>
+          <td style="padding:5px 6px">${s.trades}회 / ${s.win_rate != null ? s.win_rate + '%' : '-'}</td></tr>`).join('')}</tbody>
+      </table>
+      <div style="font-size:11px;color:var(--muted);margin-top:5px">굵은 밑줄 = 각 항목 최고 (수익률·최소 MDD·최고 샤프). MDD가 작을수록 낙폭 방어가 좋습니다.</div>`;
+    cmp.classList.remove('hidden');
+    _resetBtChart();
+    if (_btChart) {
+      cw.classList.remove('hidden');
+      if (_btChart._resizeFn) _btChart._resizeFn();
+      d.series.forEach(s => {
+        const ser = _btChart.addLineSeries({ color: s.color, lineWidth: s.strategy === '2425' ? 2.5 : 1.8, priceLineVisible: false });
+        ser.setData(d.dates.map((dt, i) => ({ time: dt, value: s.values[i] })));
+      });
+      document.getElementById('btLegend').innerHTML =
+        d.series.map(s => `<span style="color:${s.color}">■</span> ${escHtml(s.strategy_name.replace(/\s*\(.*\)/, ''))}`).join(' &nbsp; ') + ' (초기자본=1.0)';
+      requestAnimationFrame(() => { try { _btChart.timeScale().fitContent(); } catch {} });
+    }
+  } catch (e) {
+    load.classList.add('hidden'); btn.disabled = false; btn.textContent = '🆚 비교 실행';
     emp.textContent = '오류: ' + e.message; emp.classList.remove('hidden');
   }
 }
@@ -4649,6 +4723,7 @@ document.getElementById('btnNews').addEventListener('click', runAiNews);
 document.getElementById('btnDart').addEventListener('click', runAiDart);
 document.getElementById('btnInsider').addEventListener('click', runInsider);
 document.getElementById('btRun').addEventListener('click', runBacktest);
+document.getElementById('btCmpRun').addEventListener('click', runCompare);
 document.getElementById('btSymbol').addEventListener('keydown', e => { if (e.key === 'Enter') runBacktest(); });
 document.getElementById('srvSurgeBtn').addEventListener('click', () => runServerScreen('surge'));
 document.getElementById('srvOqBtn').addEventListener('click', () => runServerScreen('oneq'));

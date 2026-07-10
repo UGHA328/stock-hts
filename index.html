@@ -387,6 +387,7 @@
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
           <input id="btSymbol" placeholder="티커·코드·종목명 (예: AAPL, apple, 005930, 삼성전자)" style="flex:1;min-width:150px;padding:8px 10px;font-size:13px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:8px">
           <select id="btStrategy" style="padding:8px 10px;font-size:13px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:8px">
+            <option value="adaptive">🧭 적응형 (국면 자동전환)</option>
             <option value="2425">⭐ 2425 전략 (혼합)</option>
             <option value="ma_cross">이평선 교차 (20/60)</option>
             <option value="ma_align">이평선 정배열 (5·20·60)</option>
@@ -404,10 +405,27 @@
           </select>
           <button id="btRun" class="run-btn" style="background:var(--green)">▶ 실행</button>
         </div>
+        <details id="btCmpBox" style="margin-bottom:10px;border:1px solid var(--border);border-radius:8px;padding:8px 10px;background:var(--surface)">
+          <summary style="cursor:pointer;font-size:13px;font-weight:600">🆚 여러 전략 한번에 비교</summary>
+          <p class="sc-desc" style="margin:6px 0">비교할 전략을 선택하고 실행하면 하나의 그래프에 겹쳐 보여줍니다. (위 종목·기간 사용)</p>
+          <div id="btCmpChecks" style="display:flex;gap:10px 14px;flex-wrap:wrap;font-size:12.5px;margin-bottom:8px">
+            <label><input type="checkbox" value="adaptive" checked> 🧭 적응형</label>
+            <label><input type="checkbox" value="2425" checked> ⭐ 2425 전략</label>
+            <label><input type="checkbox" value="ma_cross" checked> 이평선 교차</label>
+            <label><input type="checkbox" value="ma_align"> 이평선 정배열</label>
+            <label><input type="checkbox" value="macd"> MACD</label>
+            <label><input type="checkbox" value="bb"> 볼린저밴드</label>
+            <label><input type="checkbox" value="stochastic"> 스토캐스틱</label>
+            <label><input type="checkbox" value="rsi"> RSI</label>
+            <label><input type="checkbox" value="buyhold" checked> 매수 후 보유</label>
+          </div>
+          <button id="btCmpRun" class="run-btn" style="background:var(--accent)">🆚 비교 실행</button>
+        </details>
         <div id="btLoading" class="sc-loading hidden"><div class="spinner" style="border-top-color:var(--green)"></div><p>백테스트 실행 중...</p></div>
+        <div id="btCmpStats" class="hidden" style="margin-bottom:10px;overflow-x:auto"></div>
         <div id="btStats" class="hidden" style="margin-bottom:10px"></div>
         <div id="btChartWrap" class="hidden"><div id="btChart" style="height:300px"></div>
-          <div style="font-size:11px;color:var(--muted);margin-top:4px"><span style="color:#3fb950">■</span> 전략 &nbsp; <span style="color:#8b949e">■</span> 매수후보유 (초기자본=1.0)</div>
+          <div id="btLegend" style="font-size:11px;color:var(--muted);margin-top:4px"><span style="color:#3fb950">■</span> 전략 &nbsp; <span style="color:#8b949e">■</span> 매수후보유 (초기자본=1.0)</div>
         </div>
         <div id="btExplain" class="hidden"></div>
         <div id="btEmpty" class="empty-msg hidden">결과를 가져올 수 없습니다.</div>
@@ -648,6 +666,6 @@
   </div>
 </div>
 
-<script src="./app.js?v=95"></script>
+<script src="./app.js?v=96"></script>
 </body>
 </html>
