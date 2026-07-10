@@ -47,7 +47,11 @@ body {
   gap: 2px;
   flex-shrink: 0;
   z-index: 10;
+  overflow-y: auto;              /* 항목이 화면 높이를 넘으면 세로 스크롤 */
+  -webkit-overflow-scrolling: touch;
 }
+.side-nav::-webkit-scrollbar { width: 4px; }
+.side-nav::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 .app-logo {
   font-size: 22px;
   padding: 10px 0 14px;
@@ -89,30 +93,16 @@ body {
   min-width: 0;
 }
 
-/* ── 모바일: 좌측 세로 메뉴를 2열로 배치(항목이 많아 세로 1열로는 잘리므로) ── */
+/* ── 모바일: 좌측 세로 메뉴 한 줄 유지 + 세로 스크롤(항목이 많아 화면을 넘으므로) ── */
 @media (max-width: 768px) {
   .side-nav {
-    width: 108px;                  /* 2열 폭 */
-    flex-direction: row;
-    flex-wrap: wrap;               /* 한 줄에 2개씩 → 줄 수 절반 → 잘림 없음 */
-    align-content: flex-start;
-    justify-content: center;
-    padding: 6px 2px;
-    gap: 3px;
-    overflow-y: auto;              /* 혹시 넘쳐도 사이드바 내부 스크롤 */
+    width: 60px;                   /* 한 줄, 살짝 좁게 */
+    justify-content: flex-start;
+    padding: 6px 0;
   }
-  .nav-btn {
-    width: calc(50% - 3px);
-    flex: 0 0 calc(50% - 3px);     /* 2열 고정 */
-    padding: 9px 2px;
-    border-radius: 8px;
-  }
-  .nav-btn.active {
-    background: rgba(88,166,255,.14);
-  }
-  .nav-btn.active::before { display: none; }  /* 세로 강조바 → 배경 강조로 대체 */
-  .nav-icon  { font-size: 18px; }
-  .nav-label { font-size: 10px; }
+  .nav-btn { padding: 11px 2px; }
+  .nav-icon  { font-size: 19px; }
+  .nav-label { font-size: 9.5px; }
 }
 
 /* ── 상단 바 ── */
