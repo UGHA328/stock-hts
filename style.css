@@ -89,6 +89,38 @@ body {
   min-width: 0;
 }
 
+/* ── 모바일: 좌측 세로 메뉴 → 상단 가로 메뉴(여러 줄 자동 줄바꿈) ── */
+@media (max-width: 768px) {
+  .app { flex-direction: column; height: 100vh; }
+  .side-nav {
+    width: 100%;
+    flex-direction: row;
+    flex-wrap: wrap;               /* 화면 폭에 맞춰 2~3줄로 자동 줄바꿈 → 잘림 없음 */
+    align-items: stretch;
+    justify-content: center;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+    padding: 5px 4px;
+    gap: 3px;
+    flex-shrink: 0;
+  }
+  .nav-btn {
+    width: auto;
+    flex: 0 0 auto;
+    flex-direction: row;          /* 아이콘+글자 가로 배치 → 버튼당 높이 절약 */
+    gap: 4px;
+    padding: 6px 9px;
+    border-radius: 8px;
+  }
+  .nav-btn.active {
+    background: rgba(88,166,255,.14);
+  }
+  .nav-btn.active::before { display: none; }  /* 세로 강조바 → 모바일에선 배경 강조로 대체 */
+  .nav-btn.active .nav-icon { transform: none; }
+  .nav-icon  { font-size: 15px; }
+  .nav-label { font-size: 11.5px; }
+}
+
 /* ── 상단 바 ── */
 .top-bar {
   height: var(--top-h);
