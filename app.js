@@ -2425,7 +2425,7 @@ async function runServerScreen(strategy) {
 }
 
 /* ── 전략 백테스트 ── */
-let _btChart = null, _btStrat = null, _btBh = null;
+let _btChart = null, _btStrat = null, _btBh = null, _btSel = null;
 function _resetBtChart() {
   // 항상 새로 그림 (단일=2선, 비교=N선을 유연하게 다루기 위해 매번 재생성)
   const el = document.getElementById('btChart');
@@ -2520,8 +2520,9 @@ function renderBtExplain(d) {
   box.classList.remove('hidden');
 }
 async function runBacktest() {
-  const sym = document.getElementById('btSymbol').value.trim();
+  const sym = _btSel || document.getElementById('btSymbol').value.trim();
   if (!sym) { toast('티커/코드를 입력하세요'); return; }
+  document.getElementById('btSuggest').classList.add('hidden');
   const strat = document.getElementById('btStrategy').value;
   const period = document.getElementById('btPeriod').value;
   const load = document.getElementById('btLoading'), stats = document.getElementById('btStats');
@@ -2568,8 +2569,9 @@ async function runBacktest() {
 }
 
 async function runCompare() {
-  const sym = document.getElementById('btSymbol').value.trim();
+  const sym = _btSel || document.getElementById('btSymbol').value.trim();
   if (!sym) { toast('티커/코드를 입력하세요'); return; }
+  document.getElementById('btSuggest').classList.add('hidden');
   const period = document.getElementById('btPeriod').value;
   const picks = Array.from(document.querySelectorAll('#btCmpChecks input:checked')).map(c => c.value);
   if (picks.length < 2) { toast('비교하려면 2개 이상 선택하세요'); return; }
@@ -4724,7 +4726,46 @@ document.getElementById('btnDart').addEventListener('click', runAiDart);
 document.getElementById('btnInsider').addEventListener('click', runInsider);
 document.getElementById('btRun').addEventListener('click', runBacktest);
 document.getElementById('btCmpRun').addEventListener('click', runCompare);
-document.getElementById('btSymbol').addEventListener('keydown', e => { if (e.key === 'Enter') runBacktest(); });
+
+/* 백테스트 종목 입력 자동완성 (종목 검색과 동일한 /search 재사용) */
+let _btSugSeq = 0, _btSugTimer = null;
+const _btSymEl = document.getElementById('btSymbol');
+const _btSugEl = document.getElementById('btSuggest');
+async function _btSuggest(q) {
+  const seq = ++_btSugSeq;
+  try {
+    const items = await fetchSearch(q);
+    if (seq !== _btSugSeq) return;
+    if (!items.length) { _btSugEl.classList.add('hidden'); return; }
+    _btSugEl.innerHTML = items.map(it =>
+      `<div class="bt-sug-item" data-code="${it.symbol}" data-name="${escHtml(it.name)}" style="padding:8px 10px;cursor:pointer;border-bottom:1px solid var(--border)">
+         <div style="font-size:13px;font-weight:600">${escHtml(it.name)}</div>
+         <div style="font-size:11px;color:var(--muted)">${escHtml(it.display)}</div>
+       </div>`).join('');
+    _btSugEl.querySelectorAll('.bt-sug-item').forEach(el => {
+      el.addEventListener('click', () => {
+        _btSymEl.value = el.dataset.name;
+        _btSel = el.dataset.code;        // 선택 시 정확한 심볼 기억
+        _btSugEl.classList.add('hidden');
+      });
+    });
+    _btSugEl.classList.remove('hidden');
+  } catch { _btSugEl.classList.add('hidden'); }
+}
+_btSymEl.addEventListener('input', () => {
+  _btSel = null;                          // 다시 타이핑하면 선택 해제 → 입력값 사용
+  const q = _btSymEl.value.trim();
+  clearTimeout(_btSugTimer);
+  if (q.length < 1) { _btSugEl.classList.add('hidden'); return; }
+  _btSugTimer = setTimeout(() => _btSuggest(q), 250);
+});
+_btSymEl.addEventListener('keydown', e => {
+  if (e.key === 'Enter') { _btSugEl.classList.add('hidden'); runBacktest(); }
+  else if (e.key === 'Escape') { _btSugEl.classList.add('hidden'); }
+});
+document.addEventListener('click', e => {
+  if (e.target !== _btSymEl && !_btSugEl.contains(e.target)) _btSugEl.classList.add('hidden');
+});
 document.getElementById('srvSurgeBtn').addEventListener('click', () => runServerScreen('surge'));
 document.getElementById('srvOqBtn').addEventListener('click', () => runServerScreen('oneq'));
 document.getElementById('srvRevBtn').addEventListener('click', () => runServerScreen('reversal'));
