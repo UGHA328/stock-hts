@@ -202,6 +202,22 @@ const _V = 14; // version
 const SERVER = 'https://bucked-swaddling-revenge.ngrok-free.dev';
 const HDR = { 'ngrok-skip-browser-warning': '1' };
 
+// 관심종목: 브라우저별 익명 ID (사용자끼리 목록이 섞이지 않도록 서버에 개별 보관)
+const _clientId = (() => {
+  let id = localStorage.getItem('clientId');
+  if (!id) { id = 'c' + Date.now().toString(36) + Math.floor(Math.random() * 1e9).toString(36); localStorage.setItem('clientId', id); }
+  return id;
+})();
+// 소유자(카톡 알림 수신) 모드: 주소에 ?admin=토큰 을 한 번 붙여 들어오면 저장됨
+(() => { try { const m = new URLSearchParams(location.search).get('admin'); if (m) localStorage.setItem('adminToken', m); } catch {} })();
+const _adminToken = localStorage.getItem('adminToken') || '';
+// 관심종목 API 전용 헤더 (client-id + 선택적 admin-token)
+function WL_HDR(extra) {
+  const h = { ...HDR, 'X-Client-Id': _clientId, ...(extra || {}) };
+  if (_adminToken) h['X-Admin-Token'] = _adminToken;
+  return h;
+}
+
 async function apiFetch(path) {
   const res = await fetch(SERVER + path, { headers: HDR });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -962,7 +978,7 @@ async function addToWatchFromTab(ticker, name, market, source, price) {
   try {
     await fetch(SERVER + `/api/watchlist/${market}/${ticker}`, {
       method: 'POST',
-      headers: { ...HDR, 'Content-Type': 'application/json' },
+      headers: WL_HDR({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ name, market, source, add_price: price, add_date: addDate }),
     });
   } catch (e) { console.warn('Flask 등록 실패:', e); }
@@ -978,7 +994,7 @@ async function removeFromWatch(code, market) {
   watchlist[market] = (watchlist[market] || []).filter(i => i.code !== code);
   saveWatchlist();
   _refreshOwnedMap();
-  try { await fetch(SERVER + `/api/watchlist/${market}/${code}`, { method: 'DELETE', headers: HDR }); } catch {}
+  try { await fetch(SERVER + `/api/watchlist/${market}/${code}`, { method: 'DELETE', headers: WL_HDR() }); } catch {}
   renderWatchlist();
   const btn = document.querySelector(`[data-wl-ticker="${code}"]`);
   if (btn) { btn.textContent = '⭐ 관심'; btn.classList.remove('wl-added'); }
@@ -1104,7 +1120,7 @@ async function confirmBuy() {
     if (watchlist[market].find(i => i.code === ticker)) {
       await fetch(SERVER + `/api/watchlist/${market}/${ticker}`, {
         method: 'POST',
-        headers: { ...HDR, 'Content-Type': 'application/json' },
+        headers: WL_HDR({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({
           name:        wItem?.name || ticker,
           source:      scItem?.source || '',
@@ -1364,6 +1380,8 @@ function scCache(key) {
   } catch { return null; }
 }
 function scCacheSet(key, data) {
+  // 빈 결과는 캐시하지 않음 — 일시적 네트워크 실패가 "결과 없음"을 10분간 고정하는 버그 방지
+  if (!Array.isArray(data) || data.length === 0) return;
   try { localStorage.setItem(key, JSON.stringify({ ts: Date.now(), data })); } catch {}
 }
 function perCache(key) {
@@ -2942,7 +2960,7 @@ async function renderWatchlist() {
       delete item.entryPrice; delete item.quantity; delete item.purchasedAt;
       saveWatchlist(); _refreshOwnedMap();
       try { await fetch(SERVER + `/api/watchlist/${mkt}/${code}`, {
-        method: 'PUT', headers: { ...HDR, 'Content-Type': 'application/json' },
+        method: 'PUT', headers: WL_HDR({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ entry_price: null }),
       }); } catch {}
       renderWatchlist();
@@ -3064,9 +3082,9 @@ document.addEventListener('click', e => { if (!e.target.closest('.search-box')) 
 document.getElementById('addWatchBtn').addEventListener('click', () => {
   if (!currentSymbol) return;
   const name = document.getElementById('stockName').textContent;
+  // 상세화면 관심추가도 공용 경로로 — 서버(익명ID) 동기화 + 소스/현재가 기록 통일
   if (!watchlist[currentMarket].find(i => i.code === currentSymbol)) {
-    watchlist[currentMarket].push({ code: currentSymbol, name });
-    saveWatchlist();
+    addToWatchFromTab(currentSymbol, name, currentMarket, 'stock', _curPrice);
   }
   document.getElementById('addWatchBtn').textContent = '✅ 추가됨';
   setTimeout(() => { document.getElementById('addWatchBtn').textContent = '⭐ 관심종목 추가'; }, 1500);
