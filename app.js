@@ -2798,6 +2798,8 @@ async function selectStock(code, name) {
   }
 
   _loadUpcoming(code);   // 다음 배당락·실적발표일
+  const _bi = document.getElementById('btnInsider');   // 내부자·기관: 미국 종목만
+  if (_bi) _bi.classList.toggle('hidden', inferMarket(code) === 'kr');
   document.getElementById('addWatchBtn').textContent = '⭐ 관심종목 추가';
   const ts = document.getElementById('targetSection');
   if (ts) {
@@ -3481,6 +3483,42 @@ async function runAiNews() {
   } catch (e) {
     document.getElementById('aiModalContent').innerHTML = `<p style="color:var(--red)">오류: ${escHtml(e.message)}</p>`;
   }
+}
+
+async function runInsider() {
+  if (!currentSymbol) return;
+  const name = document.getElementById('stockName').textContent;
+  openAiModal('🏛 내부자·기관 — ' + name);
+  const box = document.getElementById('aiModalContent');
+  box.innerHTML = '<div style="color:var(--muted);padding:10px">내부자 거래·기관 보유 조회 중…</div>';
+  const f$ = v => v == null ? '-' : (Math.abs(v) >= 1e9 ? '$' + (v/1e9).toFixed(2) + 'B'
+    : Math.abs(v) >= 1e6 ? '$' + (v/1e6).toFixed(1) + 'M' : '$' + Math.round(v).toLocaleString());
+  try {
+    const d = await apiFetch(`/api/insider?symbol=${encodeURIComponent(currentSymbol)}`);
+    if (d.error) { box.innerHTML = `<p style="color:var(--red)">오류: ${escHtml(d.error)}</p>`; return; }
+    const s = d.summary || {};
+    let head = '';
+    if (s.buys || s.sells) {
+      const netPos = (s.net_value || 0) >= 0;
+      head = `<div style="margin-bottom:8px;font-size:13px">최근 6개월 내부자:
+        <b style="color:#f85149">매수 ${s.buys}건</b> / <b style="color:#58a6ff">매도 ${s.sells}건</b>
+        · 순 <b style="color:${netPos ? 'var(--green)' : 'var(--red)'}">${f$(s.net_value)}</b> ${netPos ? '🟢' : '🔴'}</div>`;
+    }
+    const txns = (d.transactions || []).map(t => {
+      const c = t.side === '매수' ? '#f85149' : t.side === '매도' ? '#58a6ff' : 'var(--muted)';
+      return `<div style="display:flex;justify-content:space-between;gap:8px;font-size:12px;padding:3px 0;border-bottom:1px solid rgba(255,255,255,.05)">
+        <span>${escHtml(t.date)} · ${escHtml(t.insider)} <span style="color:var(--muted)">${escHtml(t.position)}</span></span>
+        <span style="color:${c};white-space:nowrap">${t.side} ${t.shares ? t.shares.toLocaleString() : ''}주${t.value ? ' (' + f$(t.value) + ')' : ''}</span></div>`;
+    }).join('');
+    const inst = (d.institutions || []).map(i =>
+      `<div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;border-bottom:1px solid rgba(255,255,255,.05)">
+        <span>${escHtml(i.holder)}</span>
+        <span>${i.pct.toFixed(2)}% <span style="color:${i.pct_change >= 0 ? 'var(--green)' : 'var(--red)'}">${i.pct_change >= 0 ? '▲' : '▼'}${Math.abs(i.pct_change).toFixed(2)}%p</span></span></div>`).join('');
+    box.innerHTML = `${head}
+      ${txns ? `<div class="ai-section-title">📝 내부자 거래 (Form 4)</div><div style="max-height:300px;overflow-y:auto">${txns}</div>` : '<div style="color:var(--muted);padding:6px 0">내부자 거래 데이터가 없습니다.</div>'}
+      ${inst ? `<div class="ai-section-title" style="margin-top:14px">🏦 기관 보유 상위</div>${inst}` : ''}
+      <div class="ai-disclaimer" style="margin-top:12px;font-size:11px;color:var(--muted)">출처: yfinance(SEC Form4/13F 기반). 기관보유(13F)는 분기·최대 45일 지연. 투자 판단·책임은 본인.</div>`;
+  } catch (e) { box.innerHTML = `<p style="color:var(--red)">오류: ${escHtml(e.message)}</p>`; }
 }
 
 async function runAiDart() {
@@ -4398,6 +4436,7 @@ async function runLegendAnalysis() {
 /* ── AI 버튼 이벤트 ── */
 document.getElementById('btnNews').addEventListener('click', runAiNews);
 document.getElementById('btnDart').addEventListener('click', runAiDart);
+document.getElementById('btnInsider').addEventListener('click', runInsider);
 document.getElementById('btnValuation').addEventListener('click', runAiValuation);
 document.getElementById('btnChart').addEventListener('click', runChartAnalysis);
 document.getElementById('btnLegends').addEventListener('click', runLegendAnalysis);
