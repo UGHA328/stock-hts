@@ -80,6 +80,10 @@
       </span>
       <span class="nav-label">반등</span>
     </button>
+    <button class="nav-btn" data-tab="backtest">
+      <span class="nav-icon">🧪</span>
+      <span class="nav-label">백테스트</span>
+    </button>
     <button class="nav-btn" data-tab="perf">
       <span class="nav-icon">📈</span>
       <span class="nav-label">성과</span>
@@ -374,6 +378,33 @@
         <div id="perEmpty" class="empty-msg hidden">데이터를 가져올 수 없습니다. 다시 시도해주세요.</div>
       </div>
 
+      <!-- 백테스트 탭 -->
+      <div id="tab-backtest" class="tab-pane hidden">
+        <div style="font-size:14px;font-weight:700;margin-bottom:8px">🧪 전략 백테스트</div>
+        <p class="sc-desc">종목·전략·기간을 골라 과거 성과를 검증합니다. 매수후보유와 비교. (일봉, 수수료 0.1% 반영)</p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
+          <input id="btSymbol" placeholder="티커/코드 (예: AAPL, 005930)" style="flex:1;min-width:150px;padding:8px 10px;font-size:13px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:8px">
+          <select id="btStrategy" style="padding:8px 10px;font-size:13px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:8px">
+            <option value="ma_cross">이평선 교차 (20/60)</option>
+            <option value="rsi">RSI 30/70</option>
+            <option value="buyhold">매수 후 보유</option>
+          </select>
+          <select id="btPeriod" style="padding:8px 10px;font-size:13px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:8px">
+            <option value="1y">1년</option>
+            <option value="3y" selected>3년</option>
+            <option value="5y">5년</option>
+            <option value="10y">10년</option>
+          </select>
+          <button id="btRun" class="run-btn" style="background:var(--green)">▶ 실행</button>
+        </div>
+        <div id="btLoading" class="sc-loading hidden"><div class="spinner" style="border-top-color:var(--green)"></div><p>백테스트 실행 중...</p></div>
+        <div id="btStats" class="hidden" style="margin-bottom:10px"></div>
+        <div id="btChartWrap" class="hidden"><div id="btChart" style="height:300px"></div>
+          <div style="font-size:11px;color:var(--muted);margin-top:4px"><span style="color:#3fb950">■</span> 전략 &nbsp; <span style="color:#8b949e">■</span> 매수후보유 (초기자본=1.0)</div>
+        </div>
+        <div id="btEmpty" class="empty-msg hidden">결과를 가져올 수 없습니다.</div>
+      </div>
+
       <!-- 성과 탭 -->
       <div id="tab-perf" class="tab-pane hidden">
         <div class="perf-header">
@@ -608,6 +639,6 @@
   </div>
 </div>
 
-<script src="./app.js?v=91"></script>
+<script src="./app.js?v=92"></script>
 </body>
 </html>

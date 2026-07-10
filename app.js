@@ -2361,6 +2361,66 @@ function renderSpac(d) {
   list.classList.remove('hidden');
 }
 
+/* ── 전략 백테스트 ── */
+let _btChart = null, _btStrat = null, _btBh = null;
+function _initBtChart() {
+  const el = document.getElementById('btChart');
+  if (!el || _btChart || typeof LightweightCharts === 'undefined') return;
+  _btChart = LightweightCharts.createChart(el, {
+    width: el.clientWidth || 600, height: 300,
+    layout: { background: { color: 'transparent' }, textColor: '#8b949e', fontSize: 11 },
+    grid: { vertLines: { color: '#21262d' }, horzLines: { color: '#21262d' } },
+    rightPriceScale: { borderColor: '#30363d' }, timeScale: { borderColor: '#30363d' },
+    crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+  });
+  _btStrat = _btChart.addLineSeries({ color: '#3fb950', lineWidth: 2, priceLineVisible: false });
+  _btBh = _btChart.addLineSeries({ color: '#8b949e', lineWidth: 1.5, lineStyle: LightweightCharts.LineStyle.Dashed, priceLineVisible: false });
+  _btChart._resizeFn = () => { try { _btChart.resize(el.clientWidth || 600, 300); } catch {} };
+  window.addEventListener('resize', _btChart._resizeFn);
+}
+async function runBacktest() {
+  const sym = document.getElementById('btSymbol').value.trim();
+  if (!sym) { toast('티커/코드를 입력하세요'); return; }
+  const strat = document.getElementById('btStrategy').value;
+  const period = document.getElementById('btPeriod').value;
+  const load = document.getElementById('btLoading'), stats = document.getElementById('btStats');
+  const cw = document.getElementById('btChartWrap'), emp = document.getElementById('btEmpty');
+  const btn = document.getElementById('btRun');
+  btn.disabled = true; btn.textContent = '⏳';
+  [stats, cw, emp].forEach(e => e.classList.add('hidden'));
+  load.classList.remove('hidden');
+  try {
+    const d = await apiFetch(`/api/backtest?symbol=${encodeURIComponent(sym)}&strategy=${strat}&period=${period}`);
+    load.classList.add('hidden'); btn.disabled = false; btn.textContent = '▶ 실행';
+    if (d.error) { emp.textContent = '오류: ' + d.error; emp.classList.remove('hidden'); return; }
+    const win = d.total_return >= d.bh_return;
+    const c = v => v >= 0 ? 'var(--green)' : 'var(--red)';
+    const sg = v => (v >= 0 ? '+' : '') + v + '%';
+    stats.innerHTML = `<div style="font-size:13px;margin-bottom:6px"><b>${escHtml(d.symbol)}</b> · ${escHtml(d.strategy_name)} · ${escHtml(d.from)}~${escHtml(d.to)}</div>
+      <div class="ai-metrics-row">
+        <div class="ai-metric"><span>전략 수익률</span><strong style="color:${c(d.total_return)}">${sg(d.total_return)}</strong></div>
+        <div class="ai-metric"><span>매수후보유</span><strong style="color:${c(d.bh_return)}">${sg(d.bh_return)}</strong></div>
+        <div class="ai-metric"><span>연복리(CAGR)</span><strong style="color:${c(d.cagr)}">${sg(d.cagr)}</strong></div>
+        <div class="ai-metric"><span>최대낙폭(MDD)</span><strong style="color:var(--red)">${d.mdd}%</strong></div>
+        <div class="ai-metric"><span>샤프지수</span><strong>${d.sharpe}</strong></div>
+        <div class="ai-metric"><span>매매/승률</span><strong>${d.trades}회 / ${d.win_rate != null ? d.win_rate + '%' : '-'}</strong></div>
+      </div>
+      <div style="font-size:12px;margin-top:4px;color:${win ? 'var(--green)' : 'var(--muted)'}">${win ? '✅ 전략이 매수후보유보다 우수' : 'ℹ️ 이 기간엔 매수후보유가 더 나았음'}</div>`;
+    stats.classList.remove('hidden');
+    _initBtChart();
+    if (_btChart) {
+      cw.classList.remove('hidden');
+      if (_btChart._resizeFn) _btChart._resizeFn();
+      _btStrat.setData(d.curve.map(p => ({ time: p.date, value: p.strat })));
+      _btBh.setData(d.curve.map(p => ({ time: p.date, value: p.bh })));
+      requestAnimationFrame(() => { try { _btChart.timeScale().fitContent(); } catch {} });
+    }
+  } catch (e) {
+    load.classList.add('hidden'); btn.disabled = false; btn.textContent = '▶ 실행';
+    emp.textContent = '오류: ' + e.message; emp.classList.remove('hidden');
+  }
+}
+
 /* ── 탭 전환 ── */
 function switchTab(tabId) {
   document.querySelectorAll('.tab-pane').forEach(p =>
@@ -4461,6 +4521,8 @@ async function runLegendAnalysis() {
 document.getElementById('btnNews').addEventListener('click', runAiNews);
 document.getElementById('btnDart').addEventListener('click', runAiDart);
 document.getElementById('btnInsider').addEventListener('click', runInsider);
+document.getElementById('btRun').addEventListener('click', runBacktest);
+document.getElementById('btSymbol').addEventListener('keydown', e => { if (e.key === 'Enter') runBacktest(); });
 document.getElementById('btnValuation').addEventListener('click', runAiValuation);
 document.getElementById('btnChart').addEventListener('click', runChartAnalysis);
 document.getElementById('btnLegends').addEventListener('click', runLegendAnalysis);
