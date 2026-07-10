@@ -443,6 +443,69 @@ function calcMACDHistogram(closes) {
   return { improving: h[2] < 0 && h[2] > h[1] && h[1] > h[0] };
 }
 
+/* ── 차트 오버레이용 전체 시계열 지표 ── */
+function maSeriesFull(closes, period) {
+  const out = [];
+  for (let i = 0; i < closes.length; i++) {
+    if (i < period - 1) { out.push(null); continue; }
+    let s = 0, ok = true;
+    for (let j = i - period + 1; j <= i; j++) { if (closes[j] == null) { ok = false; break; } s += closes[j]; }
+    out.push(ok ? s / period : null);
+  }
+  return out;
+}
+function rsiSeriesFull(closes, period = 14) {
+  const out = new Array(closes.length).fill(null);
+  if (closes.length < period + 1) return out;
+  let ag = 0, al = 0;
+  for (let i = 1; i <= period; i++) { const d = closes[i] - closes[i-1]; if (d > 0) ag += d; else al -= d; }
+  ag /= period; al /= period;
+  out[period] = al === 0 ? 100 : 100 - 100 / (1 + ag / al);
+  for (let i = period + 1; i < closes.length; i++) {
+    const d = closes[i] - closes[i-1];
+    ag = (ag * (period-1) + Math.max(d, 0)) / period;
+    al = (al * (period-1) + Math.max(-d, 0)) / period;
+    out[i] = al === 0 ? 100 : 100 - 100 / (1 + ag / al);
+  }
+  return out;
+}
+function macdSeriesFull(closes) {
+  const n = closes.length;
+  if (n < 35) return { macd: [], signal: [], hist: [] };
+  const e12 = emaSeries(closes, 12), e26 = emaSeries(closes, 26);
+  const macd = e12.map((v, i) => v - e26[i]);
+  const sigRaw = emaSeries(macd, 9);   // 전체 길이 유지(근사)
+  const hist = macd.map((v, i) => v - sigRaw[i]);
+  return { macd, signal: sigRaw, hist };
+}
+// 캔들 패턴 마커 (도지·장대양봉·해머·역해머·상승/하락장악)
+function detectPatterns(o, h, l, c, times) {
+  const m = [];
+  for (let i = 1; i < c.length; i++) {
+    if ([o[i], h[i], l[i], c[i]].some(v => v == null)) continue;
+    const body = Math.abs(c[i] - o[i]), range = h[i] - l[i];
+    if (range <= 0) continue;
+    const up = c[i] >= o[i];
+    const upSh = h[i] - Math.max(o[i], c[i]), loSh = Math.min(o[i], c[i]) - l[i];
+    let text = null, pos = 'belowBar', color = 'var(--muted)', shape = 'circle';
+    if (body / range < 0.1) { text = '도지'; color = '#c9a227'; }
+    else if (body / range > 0.7 && range / (c[i]||1) > 0.045) {
+      text = up ? '장대양봉' : '장대음봉'; color = up ? '#f85149' : '#58a6ff';
+      pos = up ? 'belowBar' : 'aboveBar'; shape = up ? 'arrowUp' : 'arrowDown';
+    }
+    else if (loSh > body * 2 && upSh < body && body / range < 0.4) { text = '해머'; color = '#3fb950'; shape = 'arrowUp'; }
+    else if (upSh > body * 2 && loSh < body && body / range < 0.4) { text = '역해머'; color = '#db6d28'; pos = 'aboveBar'; shape = 'arrowDown'; }
+    else {
+      // 장악형
+      const pBody = Math.abs(c[i-1] - o[i-1]);
+      if (up && c[i-1] < o[i-1] && c[i] > o[i-1] && o[i] < c[i-1] && body > pBody) { text = '상승장악'; color = '#f85149'; shape = 'arrowUp'; }
+      else if (!up && c[i-1] > o[i-1] && c[i] < o[i-1] && o[i] > c[i-1] && body > pBody) { text = '하락장악'; color = '#58a6ff'; pos = 'aboveBar'; shape = 'arrowDown'; }
+    }
+    if (text) m.push({ time: times[i], position: pos, color, shape, text });
+  }
+  return m.slice(-40);   // 너무 많으면 최근 40개만
+}
+
 // 반전 매도 플랜 (2년 MFE/MAE 백테스트 기반)
 // - 목표가: 진입 후 최대상승(MFE) 중앙값 ~+7%. 점수는 반등폭 예측력 거의 없어(7~8점 오히려 부진)
 //   상위 점수(9+, 실제로 더 큼)만 +13%, 그 외 +8%로 현실화.
@@ -2793,7 +2856,16 @@ async function _loadProfitFlag(symbol) {
 /* ── 차트 ── */
 /* lightweight-charts (TradingView 오픈소스) — 캔들스틱 + 거래량 + 볼린저밴드 */
 let _candleSeries = null, _volSeries = null, _bbU = null, _bbM = null, _bbL = null;
+let _ma5 = null, _ma20 = null, _ma60 = null;
+let _rsiChart = null, _rsiLine = null, _rsi30 = null, _rsi70 = null;
+let _macdChart = null, _macdLine = null, _macdSig = null, _macdHist = null;
 let _lastChartData = null;
+// 지표 표시 상태 (localStorage)
+let _ind = (() => {
+  try { return { ...{ ma: true, bb: true, rsi: false, macd: false, pattern: false }, ...JSON.parse(localStorage.getItem('chartInd') || '{}') }; }
+  catch { return { ma: true, bb: true, rsi: false, macd: false, pattern: false }; }
+})();
+function _saveInd() { try { localStorage.setItem('chartInd', JSON.stringify(_ind)); } catch {} }
 
 function initCharts() {
   const el = document.getElementById('priceChart');
@@ -2838,6 +2910,54 @@ function initCharts() {
   _bbU = priceChart.addLineSeries(lineOpts('rgba(255,120,80,.7)'));
   _bbM = priceChart.addLineSeries(lineOpts('rgba(180,180,180,.5)'));
   _bbL = priceChart.addLineSeries(lineOpts('rgba(80,200,130,.7)'));
+
+  // 이동평균선 (MA5/20/60)
+  const maOpts = c => ({ color: c, lineWidth: 1.4, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false });
+  _ma5  = priceChart.addLineSeries(maOpts('#e3b341'));
+  _ma20 = priceChart.addLineSeries(maOpts('#58a6ff'));
+  _ma60 = priceChart.addLineSeries(maOpts('#bc8cff'));
+
+  // RSI 서브차트
+  const rsiEl = document.getElementById('rsiChart');
+  if (rsiEl) {
+    _rsiChart = LightweightCharts.createChart(rsiEl, {
+      width: rsiEl.clientWidth || 600, height: 110,
+      layout: { background: { color: 'transparent' }, textColor: '#8b949e', fontSize: 10 },
+      grid: { vertLines: { color: '#1b2027' }, horzLines: { color: '#1b2027' } },
+      rightPriceScale: { borderColor: '#30363d' }, timeScale: { borderColor: '#30363d', timeVisible: false },
+      crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+    });
+    _rsiLine = _rsiChart.addLineSeries({ color: '#f0b400', lineWidth: 1.4, priceLineVisible: false, lastValueVisible: true });
+    _rsi70 = _rsiChart.addLineSeries({ color: 'rgba(248,81,73,.5)', lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false });
+    _rsi30 = _rsiChart.addLineSeries({ color: 'rgba(63,185,80,.5)', lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false });
+    _rsiChart._resizeFn = () => { try { _rsiChart.resize(rsiEl.clientWidth || 600, 110); } catch {} };
+    window.addEventListener('resize', _rsiChart._resizeFn);
+  }
+
+  // MACD 서브차트
+  const macdEl = document.getElementById('macdChart');
+  if (macdEl) {
+    _macdChart = LightweightCharts.createChart(macdEl, {
+      width: macdEl.clientWidth || 600, height: 120,
+      layout: { background: { color: 'transparent' }, textColor: '#8b949e', fontSize: 10 },
+      grid: { vertLines: { color: '#1b2027' }, horzLines: { color: '#1b2027' } },
+      rightPriceScale: { borderColor: '#30363d' }, timeScale: { borderColor: '#30363d', timeVisible: false },
+      crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+    });
+    _macdHist = _macdChart.addHistogramSeries({ priceLineVisible: false, lastValueVisible: false });
+    _macdLine = _macdChart.addLineSeries({ color: '#58a6ff', lineWidth: 1.4, priceLineVisible: false, lastValueVisible: false });
+    _macdSig  = _macdChart.addLineSeries({ color: '#f85149', lineWidth: 1.4, priceLineVisible: false, lastValueVisible: false });
+    _macdChart._resizeFn = () => { try { _macdChart.resize(macdEl.clientWidth || 600, 120); } catch {} };
+    window.addEventListener('resize', _macdChart._resizeFn);
+  }
+  _applyIndToggleUI();
+}
+
+function _applyIndToggleUI() {
+  document.querySelectorAll('.ind-toggle').forEach(b => b.classList.toggle('active', !!_ind[b.dataset.ind]));
+  const rw = document.getElementById('rsiWrap'), mw = document.getElementById('macdWrap');
+  if (rw) rw.classList.toggle('hidden', !_ind.rsi);
+  if (mw) mw.classList.toggle('hidden', !_ind.macd);
 }
 
 function _chartTimes(d) {
@@ -2878,11 +2998,44 @@ function updateCharts(d) {
   _candleSeries.setData(candles);
   _volSeries.setData(vols);
 
-  const bb = calcBBSeries(d.close || []);
+  const closes = d.close || [];
+  const bb = calcBBSeries(closes);
   const line = arr => arr.map((v, i) => v == null ? null : ({ time: times[i], value: v })).filter(Boolean);
   _bbU.setData(line(bb.upper));
   _bbM.setData(line(bb.mid));
   _bbL.setData(line(bb.lower));
+  [_bbU, _bbM, _bbL].forEach(s => s && s.applyOptions({ visible: _ind.bb }));
+
+  // 이동평균선
+  if (_ma5)  _ma5.setData(line(maSeriesFull(closes, 5)));
+  if (_ma20) _ma20.setData(line(maSeriesFull(closes, 20)));
+  if (_ma60) _ma60.setData(line(maSeriesFull(closes, 60)));
+  [_ma5, _ma20, _ma60].forEach(s => s && s.applyOptions({ visible: _ind.ma }));
+
+  // 캔들 패턴 마커
+  try {
+    _candleSeries.setMarkers(_ind.pattern
+      ? detectPatterns(d.open || [], d.high || [], d.low || [], closes, times) : []);
+  } catch {}
+
+  // RSI 서브차트
+  if (_rsiChart && _ind.rsi) {
+    _rsiLine.setData(line(rsiSeriesFull(closes)));
+    _rsi70.setData(times.map(t => ({ time: t, value: 70 })));
+    _rsi30.setData(times.map(t => ({ time: t, value: 30 })));
+    if (_rsiChart._resizeFn) _rsiChart._resizeFn();
+    requestAnimationFrame(() => { try { _rsiChart.timeScale().fitContent(); } catch {} });
+  }
+  // MACD 서브차트
+  if (_macdChart && _ind.macd) {
+    const md = macdSeriesFull(closes);
+    _macdLine.setData(line(md.macd));
+    _macdSig.setData(line(md.signal));
+    _macdHist.setData(md.hist.map((v, i) => v == null ? null : ({
+      time: times[i], value: v, color: v >= 0 ? 'rgba(248,81,73,.5)' : 'rgba(88,166,255,.5)' })).filter(Boolean));
+    if (_macdChart._resizeFn) _macdChart._resizeFn();
+    requestAnimationFrame(() => { try { _macdChart.timeScale().fitContent(); } catch {} });
+  }
   // setData 직후엔 lightweight-charts가 바 범위를 아직 계산 안 해 fitContent가 무효
   // (즉시=최근봉만/지연=정상). 타이밍이 불안정하므로 '실제로 맞을 때까지' 재시도.
   // 기간 변경(특히 주봉 5년/10년) 시 최근봉만 오른쪽에 압축되던 문제 해결.
@@ -4199,6 +4352,15 @@ document.getElementById('btnAiChat').addEventListener('click', openAiChat);
 document.getElementById('btnAiScore').addEventListener('click', runAiScore);
 document.querySelectorAll('.chart-range').forEach(b =>
   b.addEventListener('click', () => loadChartRange(b.dataset.range)));
+// 차트 지표 토글
+document.querySelectorAll('.ind-toggle').forEach(b =>
+  b.addEventListener('click', () => {
+    const k = b.dataset.ind;
+    _ind[k] = !_ind[k];
+    _saveInd();
+    _applyIndToggleUI();
+    if (_lastChartData) updateCharts(_lastChartData);   // 재적용
+  }));
 document.querySelectorAll('.idx-range').forEach(b =>
   b.addEventListener('click', () => {
     _idxRange = b.dataset.range;

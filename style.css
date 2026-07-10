@@ -294,6 +294,12 @@ body {
   border: 1px solid var(--border); border-radius: 7px;
 }
 .chart-range.active { background: var(--accent); color: #000; border-color: var(--accent); }
+.ind-toggle {
+  padding: 4px 11px; font-size: 12px; font-weight: 600; cursor: pointer;
+  background: var(--surface); color: var(--muted);
+  border: 1px solid var(--border); border-radius: 7px;
+}
+.ind-toggle.active { background: var(--violet, #8b5cf6); color: #fff; border-color: var(--violet, #8b5cf6); }
 .sec-range {
   padding: 5px 12px; font-size: 12px; font-weight: 600; cursor: pointer;
   background: var(--surface); color: var(--muted);

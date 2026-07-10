@@ -17,7 +17,7 @@
   <meta name="apple-mobile-web-app-title" content="주식HTS">
   <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
 
-  <link rel="stylesheet" href="./style.css?v=25">
+  <link rel="stylesheet" href="./style.css?v=26">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
 </head>
@@ -193,7 +193,22 @@
             <button class="chart-range" data-range="5y">5년</button>
             <button class="chart-range" data-range="10y">10년</button>
           </div>
+          <div id="indToggles" style="display:flex;gap:6px;flex-wrap:wrap;margin:2px 0 6px">
+            <button class="ind-toggle" data-ind="ma">이평선</button>
+            <button class="ind-toggle" data-ind="bb">볼린저</button>
+            <button class="ind-toggle" data-ind="rsi">RSI</button>
+            <button class="ind-toggle" data-ind="macd">MACD</button>
+            <button class="ind-toggle" data-ind="pattern">패턴</button>
+          </div>
           <div class="chart-wrap tall"><div id="priceChart"></div></div>
+          <div id="rsiWrap" class="hidden" style="margin-top:6px">
+            <div style="font-size:11px;color:var(--muted);padding:2px 2px">RSI(14)</div>
+            <div id="rsiChart" style="height:110px"></div>
+          </div>
+          <div id="macdWrap" class="hidden" style="margin-top:6px">
+            <div style="font-size:11px;color:var(--muted);padding:2px 2px">MACD(12,26,9)</div>
+            <div id="macdChart" style="height:120px"></div>
+          </div>
         </div>
       </div>
 
@@ -587,6 +602,6 @@
   </div>
 </div>
 
-<script src="./app.js?v=86"></script>
+<script src="./app.js?v=87"></script>
 </body>
 </html>
