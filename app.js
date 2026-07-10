@@ -1875,11 +1875,17 @@ function renderScreenerResults(results, opts) {
         ${ex.rsiWarn ? '<span class="exit-warn">⚠ RSI 과열</span>' : ''}
         ${ex.ma5Exit ? '<span class="exit-note">MA5 이탈시 즉시 매도</span>' : ''}
         <span style="flex:1"></span>
+        <button class="sc-news-btn" data-nt="${escHtml(item.ticker)}" data-nn="${escHtml(item.name)}" data-nm="${mkt}"
+          style="font-size:11px;padding:3px 8px;border-radius:6px;border:1px solid rgba(139,92,246,.4);background:rgba(139,92,246,.1);color:#a78bfa;cursor:pointer">🗞 뉴스감성</button>
         ${watchBtnHtml(item.ticker, item.name, mkt, wsrc, item.price)}
       </div>
     </div>`;
   }).join('');
 
+  list.querySelectorAll('.sc-news-btn').forEach(b => b.addEventListener('click', e => {
+    e.stopPropagation();
+    runAiNews(b.dataset.nt, b.dataset.nn, b.dataset.nm);
+  }));
   list.querySelectorAll('.sc-card').forEach(card => {
     card.addEventListener('click', () => {
       currentMarket = mkt;
@@ -3450,14 +3456,16 @@ function _sentimentBadge(s) {
   return `<span style="background:${color}22;color:${color};border:1px solid ${color}44;padding:1px 7px;border-radius:6px;font-size:10px;font-weight:700">${label}</span>`;
 }
 
-async function runAiNews() {
-  if (!currentSymbol) return;
-  const name = document.getElementById('stockName').textContent;
-  openAiModal('📰 뉴스요약 — ' + name);
+async function runAiNews(symOverride, nameOverride, marketOverride) {
+  const sym = (typeof symOverride === 'string' && symOverride) ? symOverride : currentSymbol;
+  if (!sym) return;
+  const name = nameOverride || document.getElementById('stockName').textContent;
+  const mkt = marketOverride || currentMarket;
+  openAiModal('📰 뉴스·감성 — ' + name);
   try {
     const d = await fetch(SERVER + '/ai/news', {
       method: 'POST', headers: { ...HDR, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ symbol: currentSymbol, name, market: currentMarket }),
+      body: JSON.stringify({ symbol: sym, name, market: mkt }),
     }).then(r => r.json());
     _setAiProvider(d);
 
