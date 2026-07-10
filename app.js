@@ -2797,6 +2797,7 @@ async function selectStock(code, name) {
     console.error('chart 조회 실패:', cRes.reason);  // 차트만 실패 — 가격/지표는 그대로 표시
   }
 
+  _loadUpcoming(code);   // 다음 배당락·실적발표일
   document.getElementById('addWatchBtn').textContent = '⭐ 관심종목 추가';
   const ts = document.getElementById('targetSection');
   if (ts) {
@@ -3051,6 +3052,56 @@ function updateCharts(d) {
   requestAnimationFrame(_fit);
 }
 
+/* ── 다가오는 배당락·실적 일정 ── */
+function _ddayStr(iso) {
+  try {
+    const t = new Date(iso + 'T00:00:00'); const n = new Date(); n.setHours(0, 0, 0, 0);
+    const d = Math.round((t - n) / 864e5);
+    return d <= 0 ? '오늘' : ('D-' + d);
+  } catch { return ''; }
+}
+function _fmtMD(iso) { const p = String(iso).split('-'); return p.length === 3 ? `${+p[1]}/${+p[2]}` : iso; }
+
+async function _loadUpcoming(code) {
+  const el = document.getElementById('upcomingLine');
+  if (!el) return;
+  el.textContent = '';
+  try {
+    const d = await apiFetch(`/api/upcoming?symbol=${encodeURIComponent(code)}`);
+    const parts = [];
+    if (d.ex_div) parts.push(`💰 배당락 ${_fmtMD(d.ex_div)} (${_ddayStr(d.ex_div)})`);
+    if (d.earnings) parts.push(`📊 실적발표 ${_fmtMD(d.earnings)} (${_ddayStr(d.earnings)})`);
+    el.textContent = parts.join('   ·   ');
+  } catch {}
+}
+
+async function _renderWlCalendar(items, isKr) {
+  const wrap = document.getElementById('wlCalendar'), body = document.getElementById('wlCalendarBody');
+  if (!wrap || !body) return;
+  const symOf = i => isKr ? (i.code.includes('.') ? i.code : i.code + '.KS') : i.code;
+  const syms = items.map(symOf);
+  if (!syms.length) { wrap.classList.add('hidden'); return; }
+  try {
+    const d = await fetch(SERVER + '/api/upcoming', {
+      method: 'POST', headers: { ...HDR, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ symbols: syms }),
+    }).then(r => r.json());
+    const nameBy = {}; items.forEach(i => { nameBy[symOf(i)] = i.name; });
+    const events = [];
+    for (const [s, v] of Object.entries(d || {})) {
+      if (v.ex_div) events.push({ date: v.ex_div, type: '배당락', name: nameBy[s] || s, icon: '💰' });
+      if (v.earnings) events.push({ date: v.earnings, type: '실적', name: nameBy[s] || s, icon: '📊' });
+    }
+    if (!events.length) { wrap.classList.add('hidden'); return; }
+    events.sort((a, b) => a.date < b.date ? -1 : 1);
+    body.innerHTML = events.slice(0, 12).map(e =>
+      `<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid rgba(255,255,255,.05)">
+        <span>${e.icon} ${escHtml(e.name)} <span style="color:var(--muted)">${e.type}</span></span>
+        <span style="color:var(--gold)">${_fmtMD(e.date)} (${_ddayStr(e.date)})</span></div>`).join('');
+    wrap.classList.remove('hidden');
+  } catch { wrap.classList.add('hidden'); }
+}
+
 /* ── 관심종목 ── */
 function saveWatchlist() { localStorage.setItem('watchlist_v2', JSON.stringify(watchlist)); }
 function loadWatchlistData() {
@@ -3065,10 +3116,12 @@ async function renderWatchlist() {
   const items = watchlist[watchMarket] || [];
   if (!items.length) {
     panel.innerHTML = '<div class="wl-empty">관심종목이 없습니다.<br>각 탭의 ⭐ 버튼으로 추가하세요.</div>';
+    const wc = document.getElementById('wlCalendar'); if (wc) wc.classList.add('hidden');
     return;
   }
 
   const isKr = watchMarket === 'kr';
+  _renderWlCalendar(items, isKr);   // 다가오는 배당·실적 일정
 
   // 1단계: 즉시 렌더 (현재가 로딩 플레이스홀더)
   panel.innerHTML = items.map(item => {
