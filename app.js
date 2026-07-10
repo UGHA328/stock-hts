@@ -3552,6 +3552,21 @@ async function runAiDart() {
       </div>`;
     }).join('');
 
+    // 재무비율 + 다년 추이 (미국 SEC)
+    let ratioHtml = '';
+    const _rt = d.ratios || {};
+    const _RL = [['op_margin', '영업이익률'], ['net_margin', '순이익률'], ['roe', 'ROE'], ['roa', 'ROA'], ['debt_ratio', '부채비율']];
+    const _rcells = _RL.filter(([k]) => _rt[k] != null)
+      .map(([k, lbl]) => `<div class="ai-metric"><span>${lbl}</span><strong>${_rt[k]}%</strong></div>`).join('');
+    if (_rcells) ratioHtml += `<div class="ai-section-title" style="margin-top:16px">📐 주요 재무비율</div><div class="ai-metrics-row">${_rcells}</div>`;
+    const _tr = d.annual_trend || [];
+    if (_tr.length >= 2) {
+      const rows = _tr.map(t => `<div style="display:flex;justify-content:space-between;gap:8px;font-size:12px;padding:3px 0;border-bottom:1px solid rgba(255,255,255,.05)">
+        <span style="color:var(--muted)">${t.year}</span>
+        <span>매출 <b>${escHtml(t.revenue)}</b> · 영업 <b>${escHtml(t.op)}</b> · 순익 <b>${escHtml(t.net)}</b>${t.op_margin != null ? ` <span style="color:var(--muted)">(영익률 ${t.op_margin}%)</span>` : ''}</span></div>`).join('');
+      ratioHtml += `<div class="ai-section-title" style="margin-top:14px">📈 다년 추이 (연간)</div>${rows}`;
+    }
+
     // 실제 분배금(배당) 내역 — yfinance (DART엔 ETF 분배금 없음)
     let distHtml = '';
     if (d.distributions && (d.distributions.items || []).length) {
@@ -3620,6 +3635,7 @@ async function runAiDart() {
       ${keyPoints ? `<ul class="ai-list">${keyPoints}</ul>` : ''}
       ${d.business_outlook ? `<div class="ai-section-title" style="margin-top:16px">🔭 사업 전망</div><div class="ai-impact">${escHtml(d.business_outlook)}</div>` : ''}
       ${risks ? `<ul class="ai-list ai-risk-list">${risks}</ul>` : ''}
+      ${ratioHtml}
       ${distHtml}
       ${disclosures ? `<div class="ai-section-title" style="margin-top:16px">📄 최근 공시${isReal ? ' (실제)' : ''}</div>${disclosures}` : ''}
       ${d.ai_opinion ? `
