@@ -2376,6 +2376,54 @@ function renderSpac(d) {
   list.classList.remove('hidden');
 }
 
+/* ── 전종목 서버사이드 스크리너 (급등/1Q/반등, 나이트 프리컴퓨트) ── */
+const _srvPoll = {};
+async function runServerScreen(strategy) {
+  const cfg = {
+    surge:    { market: screenerMarket, load: 'scLoading',  sum: 'scSummary',  emp: 'scEmpty',  list: 'scList',  btn: 'srvSurgeBtn',
+                render: r => renderScreenerResults(r) },
+    oneq:     { market: oneqMarket,      load: 'oqLoading',  sum: 'oqSummary',  emp: 'oqEmpty',  list: 'oqList',  btn: 'srvOqBtn',
+                render: r => renderScreenerResults(r, { list: document.getElementById('oqList'), sum: document.getElementById('oqSummary'), emp: document.getElementById('oqEmpty'), market: oneqMarket, source: 'midterm' }) },
+    reversal: { market: revMarket,       load: 'revLoading', sum: 'revSummary', emp: 'revEmpty', list: 'revList', btn: 'srvRevBtn',
+                render: r => renderRevResults(r) },
+  }[strategy];
+  if (!cfg) return;
+  const load = document.getElementById(cfg.load), sum = document.getElementById(cfg.sum);
+  const emp = document.getElementById(cfg.emp), list = document.getElementById(cfg.list), btn = document.getElementById(cfg.btn);
+  const market = cfg.market;
+  if (_srvPoll[strategy]) clearTimeout(_srvPoll[strategy]);
+  btn.disabled = true; btn.textContent = '⏳';
+  [sum, emp, list].forEach(e => e && e.classList.add('hidden'));
+  load.classList.remove('hidden');
+  const poll = async () => {
+    try {
+      const d = await apiFetch(`/api/screen2/${market}`);
+      if (market !== cfg.market) return;
+      if (d.status === 'building') {
+        const p = load.querySelector('p');
+        if (p) p.innerHTML = `전종목 스캔 중... ${d.progress}/${d.total || '?'}<br><small>최초 1회는 수 분 소요 (이후 새벽 자동 갱신)</small>`;
+        _srvPoll[strategy] = setTimeout(poll, 2500);
+        return;
+      }
+      load.classList.add('hidden'); btn.disabled = false; btn.textContent = '🌐 전종목';
+      const arr = d[strategy] || [];
+      if (d.status === 'error' || !arr.length) {
+        emp.textContent = d.error ? ('오류: ' + d.error) : '조건에 맞는 종목이 없습니다. (전종목 기준)';
+        emp.classList.remove('hidden'); return;
+      }
+      cfg.render(arr);
+      if (sum && d.computed_at) {
+        sum.insertAdjacentHTML('beforeend',
+          ` &nbsp;|&nbsp; <span style="color:var(--muted)">🌐 전종목 · 📅 ${escHtml(d.computed_at)} 기준</span>`);
+      }
+    } catch (e) {
+      load.classList.add('hidden'); btn.disabled = false; btn.textContent = '🌐 전종목';
+      emp.textContent = '오류: ' + e.message; emp.classList.remove('hidden');
+    }
+  };
+  poll();
+}
+
 /* ── 전략 백테스트 ── */
 let _btChart = null, _btStrat = null, _btBh = null;
 function _initBtChart() {
@@ -4538,6 +4586,9 @@ document.getElementById('btnDart').addEventListener('click', runAiDart);
 document.getElementById('btnInsider').addEventListener('click', runInsider);
 document.getElementById('btRun').addEventListener('click', runBacktest);
 document.getElementById('btSymbol').addEventListener('keydown', e => { if (e.key === 'Enter') runBacktest(); });
+document.getElementById('srvSurgeBtn').addEventListener('click', () => runServerScreen('surge'));
+document.getElementById('srvOqBtn').addEventListener('click', () => runServerScreen('oneq'));
+document.getElementById('srvRevBtn').addEventListener('click', () => runServerScreen('reversal'));
 document.getElementById('btnValuation').addEventListener('click', runAiValuation);
 document.getElementById('btnChart').addEventListener('click', runChartAnalysis);
 document.getElementById('btnLegends').addEventListener('click', runLegendAnalysis);
