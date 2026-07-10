@@ -2441,6 +2441,67 @@ function _initBtChart() {
   _btChart._resizeFn = () => { try { _btChart.resize(el.clientWidth || 600, 300); } catch {} };
   window.addEventListener('resize', _btChart._resizeFn);
 }
+const BT_STRAT_DESC = {
+  '2425': {
+    t: '⭐ 2425 전략 (혼합 · 추천)',
+    how: '여러 지표를 결합해 <b>상승추세에서만 보유하고 하락장은 피하는</b> 것을 목표로 한 복합 전략입니다.',
+    rules: [
+      '<b>보유 조건(모두 충족)</b>: ① 주가가 <b>200일선 위</b>(장기 상승국면) &nbsp;② <b>20일선 &gt; 60일선</b>(중기 정배열)',
+      '<b>이탈(현금화)</b>: 위 조건이 깨지거나(데드크로스·200일선 이탈) <b>RSI &gt; 80</b>(단기 과열)이면 매도',
+      '즉 "큰 추세가 살아있을 때만 올라타고, 꺾이면 빠진다" — 대세하락을 통째로 피해 <b>MDD(낙폭)를 줄이는</b> 데 초점',
+    ],
+    tip: '강한 상승장에선 매수후보유보다 수익이 낮을 수 있으나, 하락장·횡보장을 포함한 장기구간에서 낙폭 방어에 강점이 있습니다.',
+  },
+  'ma_cross': { t: '이평선 교차 (20/60)', how: '단기(20일)·장기(60일) 이동평균선의 교차로 추세를 판단합니다.',
+    rules: ['<b>매수</b>: 20일선이 60일선을 <b>위로 돌파</b>(골든크로스) 후 보유', '<b>매도</b>: 20일선이 60일선을 <b>아래로 이탈</b>(데드크로스)'],
+    tip: '가장 고전적인 추세추종. 신호가 늦은 편이라 횡보장에서 잦은 손실(휩쏘)이 날 수 있습니다.' },
+  'ma_align': { t: '이평선 정배열 (5·20·60)', how: '세 이평선이 위→아래로 5>20>60 순서로 늘어선 "정배열" 구간에만 보유합니다.',
+    rules: ['<b>보유</b>: 5일 &gt; 20일 &gt; 60일선 (완전한 상승 정배열)', '<b>매도</b>: 배열이 하나라도 깨지면 청산'],
+    tip: '강한 추세만 골라 타므로 상승장에서 강력하지만, 진입/청산이 잦아 수수료·휩쏘에 취약할 수 있습니다.' },
+  'macd': { t: 'MACD (골든/데드크로스)', how: '이평선 교차의 개선판. MACD선과 시그널선의 교차로 추세 전환을 조금 더 빠르게 포착합니다.',
+    rules: ['<b>매수</b>: MACD선이 시그널선을 <b>위로 돌파</b>(골든크로스)', '<b>매도</b>: MACD선이 시그널선을 <b>아래로 이탈</b>(데드크로스)'],
+    tip: '이평선 교차보다 신호가 빨라 하락 회피에 유리하나, 그만큼 잔신호(속임수)도 많습니다.' },
+  'bb': { t: '볼린저밴드 (역추세)', how: '주가는 밴드(평균±2σ) 안에 머무는 경향이 있다는 원리로, 과도하게 벌어지면 평균 회귀를 노립니다.',
+    rules: ['<b>매수</b>: 주가가 <b>하단선 터치</b>(과매도 → 반등 기대)', '<b>매도</b>: 주가가 <b>상단선 터치</b>(과열 → 차익실현)'],
+    tip: '횡보·박스권에서 잘 맞습니다. 강한 추세장(폭등·폭락)에선 밴드를 타고 계속 움직여 손실이 커질 수 있습니다.' },
+  'stochastic': { t: '스토캐스틱 (14,3)', how: '최근 n일 가격 범위에서 현재가의 상대 위치(%)로 과매수·과매도를 판단하는 민감한 모멘텀 지표입니다.',
+    rules: ['<b>매수</b>: 단기선(%K)이 장기선(%D)을 <b>위로 돌파</b>', '<b>매도</b>: %K가 %D를 <b>아래로 이탈</b>'],
+    tip: '주가 움직임에 매우 민감해 단타에 선호됩니다. 대신 가짜 신호(속임수)가 많은 편입니다.' },
+  'rsi': { t: 'RSI 30/70 (역추세)', how: '상승/하락 강도를 0~100으로 나타내 과매도·과매수를 판단합니다.',
+    rules: ['<b>매수</b>: RSI &lt; 30 (과매도)', '<b>매도</b>: RSI &gt; 70 (과매수)'],
+    tip: '횡보장 저점매수에 유효. 강한 추세장에선 과매도·과매수 상태가 오래 지속돼 불리할 수 있습니다.' },
+  'buyhold': { t: '매수 후 보유 (벤치마크)', how: '첫날 사서 끝까지 들고 갑니다. 모든 전략의 성과를 비교하는 기준선입니다.',
+    rules: ['<b>매수</b>: 시작일 1회', '<b>매도</b>: 없음 (계속 보유)'],
+    tip: '거래비용·타이밍 고민이 없습니다. 우상향 우량주라면 어지간한 전략보다 낫다는 연구가 많습니다.' },
+};
+function renderBtExplain(d) {
+  const box = document.getElementById('btExplain');
+  const s = BT_STRAT_DESC[d._strat] || BT_STRAT_DESC['ma_cross'];
+  const beat = d.total_return >= d.bh_return;
+  box.innerHTML = `
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px;margin-top:12px;font-size:12.5px;line-height:1.65">
+      <div style="font-weight:700;font-size:13px;margin-bottom:6px">📌 “${escHtml(s.t)}” 전략이란?</div>
+      <div style="color:var(--text);margin-bottom:8px">${s.how}</div>
+      <ul style="margin:0 0 8px 18px;padding:0;color:var(--muted)">${s.rules.map(r => `<li style="margin-bottom:3px">${r}</li>`).join('')}</ul>
+      <div style="background:var(--bg);border-radius:8px;padding:8px 10px;color:var(--muted)">💡 ${s.tip}</div>
+
+      <div style="font-weight:700;font-size:13px;margin:14px 0 6px">📊 결과 지표 읽는 법</div>
+      <div style="display:grid;grid-template-columns:1fr;gap:6px;color:var(--muted)">
+        <div><b style="color:var(--text)">전략 수익률</b> — 이 전략대로 매매했을 때 전체 기간 누적 손익. <b>매수후보유</b>와 나란히 비교하세요.</div>
+        <div><b style="color:var(--text)">연복리(CAGR)</b> — 매년 평균 몇 % 불어났는지. 기간이 다른 종목끼리 비교할 때 공정한 잣대입니다.</div>
+        <div><b style="color:var(--text)">최대낙폭(MDD)</b> — 고점 대비 가장 크게 빠졌던 폭. <b>작을수록 마음 편한</b> 전략(예: -15%가 -50%보다 안전).</div>
+        <div><b style="color:var(--text)">샤프지수</b> — 위험(변동성) 1단위당 수익. <b>1 이상이면 양호, 2 이상이면 우수</b>. 높을수록 효율적입니다.</div>
+        <div><b style="color:var(--text)">매매/승률</b> — 사고판 횟수와, 그중 이익으로 청산한 비율. 승률이 높아도 크게 잃으면 손해일 수 있습니다.</div>
+      </div>
+      <div style="margin-top:10px;padding:8px 10px;border-radius:8px;background:${beat ? 'rgba(63,185,80,.12)' : 'var(--bg)'};color:${beat ? 'var(--green)' : 'var(--muted)'}">
+        ${beat
+          ? `✅ 이 기간엔 전략(${((d.total_return - d.bh_return)).toFixed(1)}%p 초과)이 단순 보유를 이겼습니다. 다른 기간에도 유지되는지 기간을 바꿔 확인해 보세요.`
+          : `ℹ️ 이 기간엔 단순 보유가 더 나았습니다. 전략의 진짜 가치는 <b>낙폭(MDD)이 얼마나 작은지</b>에서 드러나기도 하니 MDD도 함께 보세요.`}
+      </div>
+      <div style="margin-top:8px;font-size:11px;color:var(--muted)">⚠️ 과거 성과가 미래를 보장하지 않습니다. 백테스트는 참고용이며, 수수료·세금·슬리피지·미체결은 단순화되어 있습니다.</div>
+    </div>`;
+  box.classList.remove('hidden');
+}
 async function runBacktest() {
   const sym = document.getElementById('btSymbol').value.trim();
   if (!sym) { toast('티커/코드를 입력하세요'); return; }
@@ -2448,14 +2509,16 @@ async function runBacktest() {
   const period = document.getElementById('btPeriod').value;
   const load = document.getElementById('btLoading'), stats = document.getElementById('btStats');
   const cw = document.getElementById('btChartWrap'), emp = document.getElementById('btEmpty');
+  const exp = document.getElementById('btExplain');
   const btn = document.getElementById('btRun');
   btn.disabled = true; btn.textContent = '⏳';
-  [stats, cw, emp].forEach(e => e.classList.add('hidden'));
+  [stats, cw, emp, exp].forEach(e => e.classList.add('hidden'));
   load.classList.remove('hidden');
   try {
     const d = await apiFetch(`/api/backtest?symbol=${encodeURIComponent(sym)}&strategy=${strat}&period=${period}`);
     load.classList.add('hidden'); btn.disabled = false; btn.textContent = '▶ 실행';
     if (d.error) { emp.textContent = '오류: ' + d.error; emp.classList.remove('hidden'); return; }
+    d._strat = strat;
     const win = d.total_return >= d.bh_return;
     const c = v => v >= 0 ? 'var(--green)' : 'var(--red)';
     const sg = v => (v >= 0 ? '+' : '') + v + '%';
@@ -2478,6 +2541,7 @@ async function runBacktest() {
       _btBh.setData(d.curve.map(p => ({ time: p.date, value: p.bh })));
       requestAnimationFrame(() => { try { _btChart.timeScale().fitContent(); } catch {} });
     }
+    renderBtExplain(d);
   } catch (e) {
     load.classList.add('hidden'); btn.disabled = false; btn.textContent = '▶ 실행';
     emp.textContent = '오류: ' + e.message; emp.classList.remove('hidden');

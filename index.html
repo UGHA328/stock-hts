@@ -387,7 +387,12 @@
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
           <input id="btSymbol" placeholder="티커·코드·종목명 (예: AAPL, apple, 005930, 삼성전자)" style="flex:1;min-width:150px;padding:8px 10px;font-size:13px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:8px">
           <select id="btStrategy" style="padding:8px 10px;font-size:13px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:8px">
+            <option value="2425">⭐ 2425 전략 (혼합)</option>
             <option value="ma_cross">이평선 교차 (20/60)</option>
+            <option value="ma_align">이평선 정배열 (5·20·60)</option>
+            <option value="macd">MACD (골든/데드크로스)</option>
+            <option value="bb">볼린저밴드 (하단매수/상단매도)</option>
+            <option value="stochastic">스토캐스틱 (14,3)</option>
             <option value="rsi">RSI 30/70</option>
             <option value="buyhold">매수 후 보유</option>
           </select>
@@ -404,6 +409,7 @@
         <div id="btChartWrap" class="hidden"><div id="btChart" style="height:300px"></div>
           <div style="font-size:11px;color:var(--muted);margin-top:4px"><span style="color:#3fb950">■</span> 전략 &nbsp; <span style="color:#8b949e">■</span> 매수후보유 (초기자본=1.0)</div>
         </div>
+        <div id="btExplain" class="hidden"></div>
         <div id="btEmpty" class="empty-msg hidden">결과를 가져올 수 없습니다.</div>
       </div>
 
@@ -642,6 +648,6 @@
   </div>
 </div>
 
-<script src="./app.js?v=94"></script>
+<script src="./app.js?v=95"></script>
 </body>
 </html>
