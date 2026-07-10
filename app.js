@@ -378,9 +378,10 @@ function is52WkHigh(highs) {
 const REV_HIST_KEY    = 'rev_history_v1';
 const REV_WEIGHTS_KEY = 'rev_weights_v1';
 const REV_DEFAULT_W   = {
-  'RSI 과매도 탈출': 3, 'BB 하단 복귀': 3, 'MA5 반전 중': 3,
-  'MACD 개선 중':   2, '거래량 반등':  2, '52주 저가 근접': 2, '소폭 반등': 1,
-};
+  'BB 하단 복귀': 3, '거래량 반등': 3,      // 실질 반전 트리거
+  'MA5 반전 중': 2, 'MACD 개선 중': 2,      // 보조 확인
+  'RSI 과매도 탈출': 1, '소폭 반등': 1,
+};   // '52주 저가 근접'은 백테스트상 최악(하락지속)이라 제거
 
 let revMarket  = 'kr';   // HTML 기본 활성 버튼(한국)과 일치시킴
 let revSubTab  = 'screener';
@@ -564,10 +565,6 @@ async function revScreenOne(symbol) {
     const bbPrev = calcBB(closes.slice(0, -5));
     const macdH  = calcMACDHistogram(closes);
 
-    // 52주 저가 근접
-    const yr52L  = lows.length >= 20 ? Math.min(...(lows.length >= 252 ? lows.slice(-252) : lows)) : 0;
-    const near52 = yr52L > 0 && price <= yr52L * 1.20;
-
     // ── 반등 스크리너 v2 (2년 백테스트 검증) ──────
     // '52주 저가 근접'은 최악(하락추세 지속, 평균 -1.2%)이라 제거.
     // 단순 과매도만으론 진입 안 함 — 실질 반전 트리거(BB 하단복귀/거래량 반등) 필수.
@@ -583,12 +580,12 @@ async function revScreenOne(symbol) {
     // ── 실질 반전 트리거 (둘 중 하나는 있어야 함) ──
     // BB 하단 복귀: 이전에 하단 아래였다가 현재 안으로 들어옴 [가격]
     if (bbPrev.below && !bb.below) {
-      score += weights['BB 하단 복귀'] || 3;
+      score += weights['BB 하단 복귀'];
       signals.push('BB 하단 복귀'); trigger = true; catPrice = true;
     }
     // 거래량 반등 (양봉 + 2배 이상) [거래량]
     if (vr >= 2 && chgPct > 0) {
-      score += weights['거래량 반등'] || 3;
+      score += weights['거래량 반등'];
       signals.push(`거래량 반등 ${vr.toFixed(1)}x`); trigger = true; catVol = true;
     } else if (vr >= 1.5 && chgPct > 0) {
       score += 1;
@@ -598,22 +595,22 @@ async function revScreenOne(symbol) {
     // ── 보조 확인 신호 ──
     // RSI 과매도 탈출 [모멘텀]
     if (rsi >= 28 && rsi <= 52) {
-      score += weights['RSI 과매도 탈출'] || 1;
+      score += weights['RSI 과매도 탈출'];
       signals.push(`RSI 과매도 탈출 (${rsi.toFixed(0)})`); catMom = true;
     }
     // MA5 반전 [가격]
     if (ma5 && ma20 && ma5 < ma20 && ma5ago && ma5 > ma5ago) {
-      score += weights['MA5 반전 중'] || 2;
+      score += weights['MA5 반전 중'];
       signals.push('MA5 반전 중'); catPrice = true;
     }
     // MACD 히스토그램 개선 [모멘텀]
     if (macdH.improving) {
-      score += weights['MACD 개선 중'] || 2;
+      score += weights['MACD 개선 중'];
       signals.push('MACD 개선 중'); catMom = true;
     }
     // 소폭 반등 (당일 +0.5% 이상) [가격]
     if (chgPct >= 0.5) {
-      score += weights['소폭 반등'] || 1;
+      score += weights['소폭 반등'];
       signals.push(`반등 +${chgPct.toFixed(1)}%`); catPrice = true;
     }
 
@@ -1497,7 +1494,7 @@ function _liquidEnough(symbol, closes, volumes, price) {
 /* ── 단일 종목 스크리닝 ── */
 async function screenOne(symbol) {
   try {
-    const data = await apiFetch(`/chart?symbol=${encodeURIComponent(symbol)}&range=6mo&interval=1d`);
+    const data = await apiFetch(`/chart?symbol=${encodeURIComponent(symbol)}&range=1y&interval=1d`);
     const closes  = clean(data.close);
     const volumes = (data.volume || []).map(v => v ?? 0);
     const highs   = clean(data.high);
@@ -1512,7 +1509,6 @@ async function screenOne(symbol) {
     const ma20    = calcMA(closes, 20);
     const ma60    = calcMA(closes, Math.min(60, closes.length));
     const vr      = volRatio(volumes);
-    const high52  = is52WkHigh(highs);
     const bb      = calcBB(closes);
 
     // ── 거래대금 하한 필터 (품절주·잡주 노이즈 제거, 20일 중앙값 기준) ──
@@ -1524,8 +1520,10 @@ async function screenOne(symbol) {
     // 검증: KR T+5 적중 32%→42%(평균 +1.9%→+3.2%), 미국 변동성유니버스 고점수 적중 40%+
     let score = 0;
     const signals = [];
-    const hi = highs.length ? Math.max(...highs) : 0;
-    const highPct = hi > 0 ? (price / hi * 100) : 0;   // 6개월 고점 대비 위치
+    // 52주 고점 대비 위치 (1년 데이터 → 진짜 신고가 판정)
+    const hiArr = highs.length >= 252 ? highs.slice(-252) : highs;
+    const hi = hiArr.length ? Math.max(...hiArr) : 0;
+    const highPct = hi > 0 ? (price / hi * 100) : 0;
 
     // ① 추세 (예측력 최상위)
     if (ma5 && ma20 && ma60 && price > ma5 && ma5 > ma20 && ma20 > ma60) {
@@ -1558,9 +1556,11 @@ async function screenOne(symbol) {
     if (bb.above && vr >= 1.5) { score += 1; signals.push('거래량+BB돌파'); }
 
     // 시장별 임계값 — 미국 변동성 유니버스는 신호 노이즈가 많아 더 엄격하게
+    // + 시장 약세국면(지수 20일선 하회)이면 기준 +2 상향 (하락장 급등 오탐 방지)
     const isKrSym = /\.(KS|KQ)$/.test(symbol);
-    const minScore = isKrSym ? 6 : 7;
+    const minScore = (isKrSym ? 6 : 7) + (_mktBear ? 2 : 0);
     if (score < minScore) return null;
+    if (_mktBear) signals.push('⚠약세장');
 
     const ticker = symbol.replace(/\.(KS|KQ)$/, '');
     const krEntry = KR_STOCKS.find(s => s.code === ticker);
@@ -1668,6 +1668,20 @@ async function midTermScreenOne(symbol) {
   } catch { return null; }
 }
 
+/* 시장 국면(약세장) 판정 — 지수가 20일선 아래면 약세. 급등 스크리너 기준 강화용 */
+let _mktBear = false;
+async function _setMktRegime(market) {
+  try {
+    const idx = market === 'us' ? '^IXIC' : '^KS11';
+    const d = await apiFetch(`/chart?symbol=${encodeURIComponent(idx)}&range=6mo&interval=1d`);
+    const c = clean(d.close);
+    if (c.length >= 20) {
+      const ma20 = c.slice(-20).reduce((a, b) => a + b, 0) / 20;
+      _mktBear = c[c.length - 1] < ma20;
+    } else _mktBear = false;
+  } catch { _mktBear = false; }
+}
+
 /* 시장지수 6개월 모멘텀 세팅 (상대강도용) — 1Q 실행 시 1회 호출 */
 async function _setOneqIdxMom6(market) {
   try {
@@ -1723,6 +1737,7 @@ async function runScreener(refresh = false) {
   [list, sum, emp].forEach(el => el.classList.add('hidden'));
 
   try {
+    await _setMktRegime(screenerMarket);   // 시장 국면(약세장) 반영
     const stockList = screenerMarket === 'us' ? US_SCREEN_LIST : KR_SCREEN_LIST;
     const results = await batchScreen(stockList, screenerMarket, screenOne);
     scCacheSet(cacheKey, results);
@@ -2396,7 +2411,7 @@ async function runBacktest() {
     const win = d.total_return >= d.bh_return;
     const c = v => v >= 0 ? 'var(--green)' : 'var(--red)';
     const sg = v => (v >= 0 ? '+' : '') + v + '%';
-    stats.innerHTML = `<div style="font-size:13px;margin-bottom:6px"><b>${escHtml(d.symbol)}</b> · ${escHtml(d.strategy_name)} · ${escHtml(d.from)}~${escHtml(d.to)}</div>
+    stats.innerHTML = `<div style="font-size:13px;margin-bottom:6px"><b>${escHtml(d.name || d.symbol)}</b>${d.name && d.name !== d.symbol ? ` <span style="color:var(--muted)">(${escHtml(d.symbol)})</span>` : ''} · ${escHtml(d.strategy_name)} · ${escHtml(d.from)}~${escHtml(d.to)}</div>
       <div class="ai-metrics-row">
         <div class="ai-metric"><span>전략 수익률</span><strong style="color:${c(d.total_return)}">${sg(d.total_return)}</strong></div>
         <div class="ai-metric"><span>매수후보유</span><strong style="color:${c(d.bh_return)}">${sg(d.bh_return)}</strong></div>
