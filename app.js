@@ -218,6 +218,24 @@ function WL_HDR(extra) {
   return h;
 }
 
+// 비차단 토스트 (모바일에서 alert 대신) — 화면 하단 중앙에 잠깐 표시
+function toast(msg, isErr) {
+  let t = document.getElementById('_toast');
+  if (!t) {
+    t = document.createElement('div');
+    t.id = '_toast';
+    t.style.cssText = 'position:fixed;left:50%;bottom:72px;transform:translateX(-50%);z-index:9999;max-width:86%;'
+      + 'padding:11px 16px;border-radius:10px;font-size:13px;line-height:1.4;color:#fff;box-shadow:0 4px 18px rgba(0,0,0,.4);'
+      + 'opacity:0;transition:opacity .25s;pointer-events:none';
+    document.body.appendChild(t);
+  }
+  t.style.background = isErr ? 'rgba(200,40,40,.95)' : 'rgba(40,40,48,.95)';
+  t.textContent = msg;
+  t.style.opacity = '1';
+  clearTimeout(t._h);
+  t._h = setTimeout(() => { t.style.opacity = '0'; }, 3200);
+}
+
 async function apiFetch(path) {
   const res = await fetch(SERVER + path, { headers: HDR });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -636,7 +654,7 @@ async function runRevScreener(refresh = false) {
     saveRevHistory(results, revMarket);
     renderRevResults(results);
   } catch (e) {
-    alert('스크리너 오류: ' + e.message);
+    toast('스크리너 오류: ' + e.message, true);
   } finally {
     btn.disabled = false; btn.textContent = '▶ 실행';
     load.classList.add('hidden');
@@ -1006,8 +1024,10 @@ function isInWatch(ticker, market) {
 
 function watchBtnHtml(ticker, name, market, source, price) {
   const inWatch = isInWatch(ticker, market);
-  return `<button class="wl-quick-btn${inWatch ? ' wl-added' : ''}" data-wl-ticker="${ticker}"
-    onclick="event.stopPropagation();addToWatchFromTab('${ticker}','${escHtml(name)}','${market}','${source}',${price})">
+  // 데이터는 data-* 속성으로만 전달(인라인 onclick JS문자열에 이름을 넣지 않음).
+  // 이전엔 name에 작은따옴표(McDonald's 등)가 있으면 onclick이 깨졌음 → 위임 리스너로 처리.
+  return `<button class="wl-quick-btn${inWatch ? ' wl-added' : ''}" data-wl-ticker="${escHtml(ticker)}"
+    data-wl-name="${escHtml(name)}" data-wl-market="${escHtml(market)}" data-wl-source="${escHtml(source || '')}" data-wl-price="${Number(price) || 0}">
     ${inWatch ? '✅ 관심중' : '⭐ 관심'}
   </button>`;
 }
@@ -1646,7 +1666,7 @@ async function runScreener(refresh = false) {
     saveScreenerHistory(results, screenerMarket);
     renderScreenerResults(results);
   } catch (e) {
-    alert('스크리너 오류: ' + e.message);
+    toast('스크리너 오류: ' + e.message, true);
   } finally {
     btn.disabled = false; btn.textContent = '▶ 실행';
     load.classList.add('hidden');
@@ -1688,7 +1708,7 @@ async function runOneQScreener(refresh = false) {
       }).catch(() => {});
     }
   } catch (e) {
-    alert('1Q 스크리너 오류: ' + e.message);
+    toast('1Q 스크리너 오류: ' + e.message, true);
   } finally {
     btn.disabled = false; btn.textContent = '▶ 실행';
     load.classList.add('hidden');
@@ -3088,6 +3108,15 @@ document.getElementById('addWatchBtn').addEventListener('click', () => {
   }
   document.getElementById('addWatchBtn').textContent = '✅ 추가됨';
   setTimeout(() => { document.getElementById('addWatchBtn').textContent = '⭐ 관심종목 추가'; }, 1500);
+});
+
+// 관심 버튼(⭐) 위임 리스너 — data-* 로 안전하게 값 전달(이름 내 따옴표에도 안전)
+document.addEventListener('click', e => {
+  const b = e.target.closest('.wl-quick-btn');
+  if (!b) return;
+  e.stopPropagation();
+  addToWatchFromTab(b.dataset.wlTicker, b.dataset.wlName, b.dataset.wlMarket,
+                    b.dataset.wlSource || '', parseFloat(b.dataset.wlPrice) || 0);
 });
 
 document.querySelectorAll('.sc-tab').forEach(btn => {
