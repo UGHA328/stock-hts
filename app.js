@@ -2819,10 +2819,38 @@ async function sendSectorChat() {
 /* ── 거시경제 (FRED/World Bank/yfinance via OpenBB 소스) ── */
 let _macroData = null, _macroChart = null, _macroLine = null, _macroKey = null;
 
+async function loadRegime() {
+  const box = document.getElementById('regimeBox');
+  if (!box) return;
+  box.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:8px">시장 국면 판정 중…</div>';
+  try {
+    const d = await apiFetch(`/api/macro_regime?market=${currentMarket}`);
+    if (d.error) { box.innerHTML = ''; return; }
+    const col = d.regime === 'risk_on' ? 'var(--green)' : (d.regime === 'risk_off' ? 'var(--red)' : 'var(--gold)');
+    const emo = d.regime === 'risk_on' ? '🟢' : (d.regime === 'risk_off' ? '🔴' : '🟡');
+    const sIcon = s => s === 'good' ? '✅' : (s === 'warn' ? '⚠️' : '❌');
+    box.innerHTML = `
+      <div style="border:1.5px solid ${col};border-radius:12px;padding:12px 14px;background:linear-gradient(180deg,${col}18,transparent)">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px">
+          <div style="font-size:15px;font-weight:800;color:${col}">${emo} 시장 국면: ${escHtml(d.label)}</div>
+          <div style="font-size:12px;color:var(--muted)">점수 ${d.score}/${d.score_max} · 권장 주식노출 <b style="color:${col}">${d.exposure}%</b> · ${escHtml(d.updated)}</div>
+        </div>
+        <div style="font-size:12.5px;color:var(--text);margin:7px 0 9px">${escHtml(d.summary)}</div>
+        <div style="display:grid;grid-template-columns:1fr;gap:5px">
+          ${d.details.map(x => `<div style="display:flex;justify-content:space-between;gap:8px;font-size:12px;border-bottom:1px solid var(--border);padding-bottom:4px">
+            <span>${sIcon(x.status)} <b>${escHtml(x.name)}</b> <span style="color:var(--muted)">— ${escHtml(x.desc)}</span></span>
+            <span style="white-space:nowrap;font-weight:600">${escHtml(x.value)}</span></div>`).join('')}
+        </div>
+        <div style="font-size:11px;color:var(--muted);margin-top:8px">📊 ${currentMarket === 'kr' ? 'KOSPI' : 'S&P500'} 추세 + VIX + 미국 금리·장단기 금리차 종합. 개별 종목 차트 밖의 "시장 전체 환경"을 봅니다.</div>
+      </div>`;
+  } catch (e) { box.innerHTML = ''; }
+}
+
 async function loadMacro() {
   const us = document.getElementById('macroUS'), kr = document.getElementById('macroKR');
   us.innerHTML = '<div style="color:var(--muted);padding:20px">거시지표 불러오는 중…</div>';
   kr.innerHTML = '';
+  loadRegime();
   try {
     const d = await apiFetch('/api/macro');
     _macroData = d;
