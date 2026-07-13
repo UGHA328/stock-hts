@@ -2469,6 +2469,15 @@ const BT_STRAT_DESC = {
     ],
     tip: '실측: 엔비디아 같은 강한 모멘텀주(3년)에서 원본보다 우세(201% vs 169%). 대신 오르내림 잦은 종목에선 원본이 조금 더 낫습니다. 종목 성격에 따라 원본 2425와 비교해보세요.',
   },
+  'adaptive_m': {
+    t: '🧭+거시 적응형 (시장국면 게이트)',
+    how: '적응형 위에 <b>시장 전체의 거시 국면(금리·VIX·지수추세)</b>을 덧씌운 버전. 시장이 "위험 OFF"인 날은 개별 신호가 좋아도 <b>강제로 현금</b> 보유.',
+    rules: [
+      '기본은 적응형과 동일(상승→추세추종, 횡보/하락→볼린저)',
+      '<b>+ 거시 게이트</b>: 시장 국면 점수&lt;0(위험OFF)이면 그날은 현금 — 2022 같은 대세하락을 시장 레벨에서 회피',
+    ],
+    tip: '실측: 시장연동 대형주(AAPL·삼성)는 낙폭이 줄지만, 시장과 따로 노는 종목(엔비디아 폭등·개별악재주)엔 손해. "시장 전체가 위험할 때 방어"가 목적인 대형·지수형 종목에 적합.',
+  },
   '2425': {
     t: '⭐ 2425 전략 (혼합 · 추천)',
     how: '여러 지표를 결합해 <b>상승추세에서만 보유하고 하락장은 피하는</b> 것을 목표로 한 복합 전략입니다.',
@@ -2640,6 +2649,7 @@ function switchTab(tabId) {
     p.classList.toggle('hidden', p.id !== `tab-${tabId}`));
   document.querySelectorAll('.nav-btn').forEach(b =>
     b.classList.toggle('active', b.dataset.tab === tabId));
+  if (['momentum', 'oneq', 'rev'].includes(tabId)) renderRegimeBanners();
   if (tabId === 'watch') renderWatchlist();
   if (tabId === 'home') document.getElementById('searchInput').focus();
   if (tabId === 'perf') updatePerfPrices().then(hist => renderPerfTab(hist));
@@ -2819,12 +2829,45 @@ async function sendSectorChat() {
 /* ── 거시경제 (FRED/World Bank/yfinance via OpenBB 소스) ── */
 let _macroData = null, _macroChart = null, _macroLine = null, _macroKey = null;
 
+const _regimeCache = {};
+async function getRegime(market) {
+  if (_regimeCache[market]) return _regimeCache[market];
+  const d = await apiFetch(`/api/macro_regime?market=${market}`);
+  if (!d.error) _regimeCache[market] = d;
+  return d;
+}
+function _regimeColor(r) { return r === 'risk_on' ? 'var(--green)' : (r === 'risk_off' ? 'var(--red)' : 'var(--gold)'); }
+function _regimeEmoji(r) { return r === 'risk_on' ? '🟢' : (r === 'risk_off' ? '🔴' : '🟡'); }
+
+// 급등주/1Q/반등 상단 컴팩트 배너 (위험OFF면 강한 경고)
+async function renderRegimeBanners() {
+  const els = document.querySelectorAll('[data-regime-banner]');
+  if (!els.length) return;
+  let d;
+  try { d = await getRegime(currentMarket); } catch { return; }
+  if (!d || d.error) { els.forEach(e => e.innerHTML = ''); return; }
+  const col = _regimeColor(d.regime), emo = _regimeEmoji(d.regime);
+  const warn = d.regime === 'risk_off'
+    ? '<b>추천 종목이 있어도 신규 매수는 신중히</b> — 하락장에선 급등·반등 신호의 실패(속임수)가 급증합니다. 현금 비중을 높이세요.'
+    : (d.regime === 'neutral' ? '혼조 국면 — 선별 매수, 손절 기준을 지키세요.' : '우호적 환경 — 추세추종 전략에 유리.');
+  const html = `<div style="border:1.5px solid ${col};border-radius:10px;padding:9px 12px;margin-bottom:10px;background:${col}14">
+      <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:4px;align-items:center">
+        <span style="font-weight:800;color:${col}">${emo} 시장 국면: ${escHtml(d.label)}</span>
+        <span style="font-size:11px;color:var(--muted)">점수 ${d.score}/${d.score_max} · 권장 노출 ${d.exposure}% · <a href="#" data-goto-macro style="color:var(--accent)">거시탭▸</a></span>
+      </div>
+      <div style="font-size:11.5px;color:var(--text);margin-top:4px">${warn}</div>
+    </div>`;
+  els.forEach(e => { e.innerHTML = html; });
+  document.querySelectorAll('[data-goto-macro]').forEach(a =>
+    a.addEventListener('click', ev => { ev.preventDefault(); switchTab('macro'); }));
+}
+
 async function loadRegime() {
   const box = document.getElementById('regimeBox');
   if (!box) return;
   box.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:8px">시장 국면 판정 중…</div>';
   try {
-    const d = await apiFetch(`/api/macro_regime?market=${currentMarket}`);
+    const d = await getRegime(currentMarket);
     if (d.error) { box.innerHTML = ''; return; }
     const col = d.regime === 'risk_on' ? 'var(--green)' : (d.regime === 'risk_off' ? 'var(--red)' : 'var(--gold)');
     const emo = d.regime === 'risk_on' ? '🟢' : (d.regime === 'risk_off' ? '🔴' : '🟡');
@@ -2841,6 +2884,10 @@ async function loadRegime() {
             <span>${sIcon(x.status)} <b>${escHtml(x.name)}</b> <span style="color:var(--muted)">— ${escHtml(x.desc)}</span></span>
             <span style="white-space:nowrap;font-weight:600">${escHtml(x.value)}</span></div>`).join('')}
         </div>
+        ${(d.history && d.history.length > 1) ? `<div style="margin-top:9px;padding-top:8px;border-top:1px solid var(--border)">
+          <div style="font-size:11px;color:var(--muted);margin-bottom:4px">📅 최근 판정 이력 (며칠간 적중 여부 확인용)</div>
+          <div style="display:flex;gap:5px;flex-wrap:wrap">${d.history.map(h => `<span title="${escHtml(h.date)} · ${escHtml(h.label)}" style="font-size:10.5px;padding:2px 6px;border-radius:6px;background:${_regimeColor(h.regime)}22;color:${_regimeColor(h.regime)};border:1px solid ${_regimeColor(h.regime)}55">${escHtml((h.date || '').slice(5))} ${_regimeEmoji(h.regime)}${h.score}</span>`).join('')}</div>
+        </div>` : ''}
         <div style="font-size:11px;color:var(--muted);margin-top:8px">📊 ${currentMarket === 'kr' ? 'KOSPI' : 'S&P500'} 추세 + VIX + 미국 금리·장단기 금리차 종합. 개별 종목 차트 밖의 "시장 전체 환경"을 봅니다.</div>
       </div>`;
   } catch (e) { box.innerHTML = ''; }

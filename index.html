@@ -220,6 +220,7 @@
 
       <!-- 급등주 탭 -->
       <div id="tab-momentum" class="tab-pane hidden">
+        <div class="regime-mini" data-regime-banner></div>
         <div class="sc-controls">
           <div class="sc-market-tabs">
             <button class="sc-tab" data-m="us">🇺🇸 미국</button>
@@ -243,6 +244,7 @@
 
       <!-- 1Q 탭 (3개월 +15% 유망주) -->
       <div id="tab-oneq" class="tab-pane hidden">
+        <div class="regime-mini" data-regime-banner></div>
         <div class="sc-controls">
           <div class="sc-market-tabs">
             <button class="oq-tab" data-m="us">🇺🇸 미국</button>
@@ -392,6 +394,7 @@
           </div>
           <select id="btStrategy" style="padding:8px 10px;font-size:13px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:8px">
             <option value="adaptive">🧭 적응형 (국면 자동전환)</option>
+            <option value="adaptive_m">🧭+거시 적응형 (시장국면 게이트)</option>
             <option value="2425">⭐ 2425 전략 (혼합)</option>
             <option value="2425g">2425g (제미나이 개선안)</option>
             <option value="ma_cross">이평선 교차 (20/60)</option>
@@ -417,6 +420,7 @@
           <p class="sc-desc" style="margin:6px 0">비교할 전략을 선택하고 실행하면 하나의 그래프에 겹쳐 보여줍니다. (위 종목·기간 사용)</p>
           <div id="btCmpChecks" style="display:flex;gap:10px 14px;flex-wrap:wrap;font-size:12.5px;margin-bottom:8px">
             <label><input type="checkbox" value="adaptive" checked> 🧭 적응형</label>
+            <label><input type="checkbox" value="adaptive_m"> 🧭+거시</label>
             <label><input type="checkbox" value="2425" checked> ⭐ 2425 전략</label>
             <label><input type="checkbox" value="2425g"> 2425g(제미나이안)</label>
             <label><input type="checkbox" value="ma_cross" checked> 이평선 교차</label>
@@ -457,6 +461,7 @@
 
       <!-- 반전예상주 탭 -->
       <div id="tab-rev" class="tab-pane hidden">
+        <div class="regime-mini" data-regime-banner></div>
         <div class="rev-subtabs">
           <button class="rev-stab active" data-stab="screener">📉 스크리너</button>
           <button class="rev-stab" data-stab="perf">📊 성과·피드백</button>
@@ -674,6 +679,6 @@
   </div>
 </div>
 
-<script src="./app.js?v=101"></script>
+<script src="./app.js?v=102"></script>
 </body>
 </html>
