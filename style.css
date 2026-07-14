@@ -18,6 +18,25 @@
   --search-h: 52px;
 }
 
+/* ── 라이트 테마 (밝은 사무실용) — data-theme="light" 시 토큰 오버라이드 ── */
+:root[data-theme="light"] {
+  --violet: #8250df;
+  --bg: #eef1f5;
+  --surface: #ffffff;
+  --border: #d0d7de;
+  --text: #1f2328;
+  --muted: #59636e;
+  --accent: #0969da;
+  --green: #1a7f37;
+  --red: #d1242f;
+  --blue: #0969da;   /* 하락(파랑) */
+  --gold: #9a6700;
+  --orange: #bc4c00;
+}
+/* 라이트에서 과한 다크 그림자 완화 */
+:root[data-theme="light"] .search-results { box-shadow: 0 8px 24px rgba(140,149,159,.25); }
+:root[data-theme="light"] .tab-btn.active { color: #fff; }
+
 body {
   background: var(--bg);
   color: var(--text);
@@ -902,10 +921,10 @@ body {
 }
 .ai-news-title { font-weight: 600; font-size: 13px; margin-bottom: 3px; }
 .ai-news-meta { font-size: 11px; color: var(--muted); margin-bottom: 4px; }
-.ai-news-summary { font-size: 12px; color: #c9d1d9; }
+.ai-news-summary { font-size: 12px; color: var(--text); }
 .ai-impact {
   background: var(--surface); border-left: 3px solid var(--violet);
-  padding: 10px 12px; border-radius: 0 8px 8px 0; font-size: 13px; color: #c9d1d9;
+  padding: 10px 12px; border-radius: 0 8px 8px 0; font-size: 13px; color: var(--text);
 }
 .ai-metrics-row { display: flex; gap: 10px; flex-wrap: wrap; margin: 8px 0; }
 .ai-metric {
@@ -953,7 +972,7 @@ body {
   padding: 14px; margin-bottom: 10px;
 }
 .fortune-section-title { font-size: 12px; font-weight: 700; color: var(--violet); margin-bottom: 8px; }
-.fortune-text { font-size: 13px; line-height: 1.7; color: #c9d1d9; margin-bottom: 8px; }
+.fortune-text { font-size: 13px; line-height: 1.7; color: var(--text); margin-bottom: 8px; }
 .fortune-caution { font-size: 12px; color: var(--gold); padding: 6px 0; }
 .fortune-sectors { margin-top: 8px; font-size: 12px; color: var(--muted); }
 .fortune-sector {

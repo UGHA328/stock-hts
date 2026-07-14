@@ -29,6 +29,26 @@ function _applyFontSize(idx) {
   // 화면 회전 감지
   window.addEventListener('resize', () => _applyFontSize());
 })();
+initTheme();
+
+/* ── 테마(라이트/다크) ── */
+function _ct() {   // 차트용 테마색 (lightweight-charts는 CSS변수 못 읽어 JS로 공급)
+  return document.documentElement.dataset.theme === 'light'
+    ? { text: '#59636e', grid: '#eaecef', border: '#d0d7de' }
+    : { text: '#8b949e', grid: '#21262d', border: '#30363d' };
+}
+function applyTheme(t) {
+  document.documentElement.dataset.theme = t;
+  localStorage.setItem('theme', t);
+  const b = document.getElementById('themeToggle');
+  if (b) b.textContent = t === 'light' ? '🌙' : '☀️';   // 누르면 갈 방향 표시
+}
+function initTheme() {
+  applyTheme(localStorage.getItem('theme') || 'light');
+  const b = document.getElementById('themeToggle');
+  if (b) b.addEventListener('click', () =>
+    applyTheme(document.documentElement.dataset.theme === 'light' ? 'dark' : 'light'));
+}
 
 /* ── 상태 ── */
 let currentMarket = 'kr';
@@ -2434,9 +2454,9 @@ function _resetBtChart() {
   if (!el || typeof LightweightCharts === 'undefined') return null;
   _btChart = LightweightCharts.createChart(el, {
     width: el.clientWidth || 600, height: 300,
-    layout: { background: { color: 'transparent' }, textColor: '#8b949e', fontSize: 11 },
-    grid: { vertLines: { color: '#21262d' }, horzLines: { color: '#21262d' } },
-    rightPriceScale: { borderColor: '#30363d' }, timeScale: { borderColor: '#30363d' },
+    layout: { background: { color: 'transparent' }, textColor: _ct().text, fontSize: 11 },
+    grid: { vertLines: { color: _ct().grid }, horzLines: { color: _ct().grid } },
+    rightPriceScale: { borderColor: _ct().border }, timeScale: { borderColor: _ct().border },
     crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
   });
   _btChart._resizeFn = () => { try { _btChart.resize(el.clientWidth || 600, 300); } catch {} };
@@ -2735,9 +2755,9 @@ function _initSectorChart() {
   if (!el) return;
   _secChart = LightweightCharts.createChart(el, {
     width: el.clientWidth || 600, height: 260,
-    layout: { background: { color: 'transparent' }, textColor: '#8b949e', fontSize: 11 },
-    grid: { vertLines: { color: '#21262d' }, horzLines: { color: '#21262d' } },
-    rightPriceScale: { borderColor: '#30363d' }, timeScale: { borderColor: '#30363d' },
+    layout: { background: { color: 'transparent' }, textColor: _ct().text, fontSize: 11 },
+    grid: { vertLines: { color: _ct().grid }, horzLines: { color: _ct().grid } },
+    rightPriceScale: { borderColor: _ct().border }, timeScale: { borderColor: _ct().border },
     crosshair: { mode: LightweightCharts.CrosshairMode.Normal }, localization: { locale: 'ko-KR' },
   });
   _secLine = _secChart.addAreaSeries({
@@ -2946,9 +2966,9 @@ function _renderMacroRegion(el, title, region, items) {
 function _initMacroChart() {
   if (_macroChart || typeof LightweightCharts === 'undefined') return;
   _macroChart = LightweightCharts.createChart(document.getElementById('macroChart'), {
-    autoSize: true, layout: { background: { color: 'transparent' }, textColor: '#8b949e', fontSize: 11 },
-    grid: { vertLines: { color: '#21262d' }, horzLines: { color: '#21262d' } },
-    rightPriceScale: { borderColor: '#30363d' }, timeScale: { borderColor: '#30363d' },
+    autoSize: true, layout: { background: { color: 'transparent' }, textColor: _ct().text, fontSize: 11 },
+    grid: { vertLines: { color: _ct().grid }, horzLines: { color: _ct().grid } },
+    rightPriceScale: { borderColor: _ct().border }, timeScale: { borderColor: _ct().border },
     crosshair: { mode: LightweightCharts.CrosshairMode.Normal }, localization: { locale: 'ko-KR' },
   });
   _macroLine = _macroChart.addAreaSeries({
@@ -3037,9 +3057,9 @@ async function loadIndices() {
 function _initIdxChart() {
   if (_idxChart || typeof LightweightCharts === 'undefined') return;
   _idxChart = LightweightCharts.createChart(document.getElementById('idxChart'), {
-    autoSize: true, layout: { background: { color: 'transparent' }, textColor: '#8b949e', fontSize: 11 },
-    grid: { vertLines: { color: '#21262d' }, horzLines: { color: '#21262d' } },
-    rightPriceScale: { borderColor: '#30363d' }, timeScale: { borderColor: '#30363d' },
+    autoSize: true, layout: { background: { color: 'transparent' }, textColor: _ct().text, fontSize: 11 },
+    grid: { vertLines: { color: _ct().grid }, horzLines: { color: _ct().grid } },
+    rightPriceScale: { borderColor: _ct().border }, timeScale: { borderColor: _ct().border },
     crosshair: { mode: LightweightCharts.CrosshairMode.Normal }, localization: { locale: 'ko-KR' },
   });
   _idxLine = _idxChart.addAreaSeries({
@@ -3242,10 +3262,10 @@ function initCharts() {
   const _CH_H = 340;
   priceChart = LightweightCharts.createChart(el, {
     width: el.clientWidth || 600, height: _CH_H,
-    layout: { background: { color: 'transparent' }, textColor: '#8b949e', fontSize: 11 },
-    grid: { vertLines: { color: '#21262d' }, horzLines: { color: '#21262d' } },
-    rightPriceScale: { borderColor: '#30363d' },
-    timeScale: { borderColor: '#30363d', timeVisible: false },
+    layout: { background: { color: 'transparent' }, textColor: _ct().text, fontSize: 11 },
+    grid: { vertLines: { color: _ct().grid }, horzLines: { color: _ct().grid } },
+    rightPriceScale: { borderColor: _ct().border },
+    timeScale: { borderColor: _ct().border, timeVisible: false },
     crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
     localization: { locale: 'ko-KR' },
   });
@@ -3289,9 +3309,9 @@ function initCharts() {
   if (rsiEl) {
     _rsiChart = LightweightCharts.createChart(rsiEl, {
       width: rsiEl.clientWidth || 600, height: 110,
-      layout: { background: { color: 'transparent' }, textColor: '#8b949e', fontSize: 10 },
+      layout: { background: { color: 'transparent' }, textColor: _ct().text, fontSize: 10 },
       grid: { vertLines: { color: '#1b2027' }, horzLines: { color: '#1b2027' } },
-      rightPriceScale: { borderColor: '#30363d' }, timeScale: { borderColor: '#30363d', timeVisible: false },
+      rightPriceScale: { borderColor: _ct().border }, timeScale: { borderColor: _ct().border, timeVisible: false },
       crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
     });
     _rsiLine = _rsiChart.addLineSeries({ color: '#f0b400', lineWidth: 1.4, priceLineVisible: false, lastValueVisible: true });
@@ -3306,9 +3326,9 @@ function initCharts() {
   if (macdEl) {
     _macdChart = LightweightCharts.createChart(macdEl, {
       width: macdEl.clientWidth || 600, height: 120,
-      layout: { background: { color: 'transparent' }, textColor: '#8b949e', fontSize: 10 },
+      layout: { background: { color: 'transparent' }, textColor: _ct().text, fontSize: 10 },
       grid: { vertLines: { color: '#1b2027' }, horzLines: { color: '#1b2027' } },
-      rightPriceScale: { borderColor: '#30363d' }, timeScale: { borderColor: '#30363d', timeVisible: false },
+      rightPriceScale: { borderColor: _ct().border }, timeScale: { borderColor: _ct().border, timeVisible: false },
       crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
     });
     _macdHist = _macdChart.addHistogramSeries({ priceLineVisible: false, lastValueVisible: false });
