@@ -256,8 +256,9 @@ function toast(msg, isErr) {
   t._h = setTimeout(() => { t.style.opacity = '0'; }, 3200);
 }
 
-async function apiFetch(path) {
-  const res = await fetch(SERVER + path, { headers: HDR });
+async function apiFetch(path, opts) {
+  opts = opts || {};
+  const res = await fetch(SERVER + path, { ...opts, headers: { ...HDR, ...(opts.headers || {}) } });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const d = await res.json();
   if (d.error) throw new Error(d.error);
@@ -2695,8 +2696,12 @@ async function loadFear() {
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
           <div><b style="font-size:15px">${escHtml(e.name)}</b> <span style="color:var(--muted);font-size:12px">${escHtml(e.code)}</span>
             <div style="font-size:12px;color:var(--muted);margin-top:2px">등록 ${escHtml(e.added)} · 상태 <b style="color:${stColor(e.status)}">${escHtml(e.status || '보유')}</b></div></div>
-          <button class="fear-del" data-code="${e.code}" style="background:none;border:1px solid var(--border);color:var(--muted);border-radius:7px;padding:4px 9px;cursor:pointer;font-size:12px">🗑 삭제</button>
+          <div style="display:flex;gap:6px">
+            <button class="fear-risk" data-code="${e.code}" data-name="${escHtml(e.name)}" data-rsi="${e.added_rsi ?? ''}" data-vol="${e.added_vol_ratio ?? ''}" style="background:rgba(248,81,73,.12);border:1px solid var(--red);color:var(--red);border-radius:7px;padding:4px 9px;cursor:pointer;font-size:12px;font-weight:600">🔍 리스크 분석</button>
+            <button class="fear-del" data-code="${e.code}" style="background:none;border:1px solid var(--border);color:var(--muted);border-radius:7px;padding:4px 9px;cursor:pointer;font-size:12px">🗑 삭제</button>
+          </div>
         </div>
+        <div class="fear-risk-out hidden" id="frisk-${e.code}" style="margin-top:10px;padding:11px 13px;border:1px solid var(--red);border-radius:9px;background:rgba(248,81,73,.06);font-size:12.5px;line-height:1.65;white-space:pre-wrap"></div>
         <div class="ai-metrics-row" style="margin-top:8px">
           <div class="ai-metric"><span>등록가</span><strong>${(e.added_price||0).toLocaleString()}원</strong></div>
           <div class="ai-metric"><span>현재가</span><strong>${e.current!=null?e.current.toLocaleString()+'원':'-'}</strong></div>
@@ -2707,7 +2712,28 @@ async function loadFear() {
       </div>`;
     }).join('');
     box.querySelectorAll('.fear-del').forEach(b => b.addEventListener('click', () => deleteFear(b.dataset.code)));
+    box.querySelectorAll('.fear-risk').forEach(b => b.addEventListener('click', () => runFearRisk(b)));
   } catch (e) { box.innerHTML = `<div class="empty-msg">오류: ${escHtml(e.message)}</div>`; }
+}
+async function runFearRisk(btn) {
+  const code = btn.dataset.code, out = document.getElementById('frisk-' + code);
+  const isKr = /^\d{6}$/.test(code);
+  out.classList.remove('hidden');
+  out.textContent = '🔍 리스크 분석 중… (급락 이유·유상증자·상폐 위험 등 최신 뉴스 확인)';
+  btn.disabled = true;
+  try {
+    const d = await apiFetch('/ai/fear-risk', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: btn.dataset.name, symbol: code, market: isKr ? 'kr' : 'us',
+        rsi: btn.dataset.rsi, vol_ratio: btn.dataset.vol })
+    });
+    let html = escHtml(d.analysis || 'AI 응답 없음');
+    if (d.news && d.news.length) {
+      html += '\n\n📰 관련 뉴스\n' + d.news.map(n => `• ${escHtml(n.title)}${n.url ? '\n  ' + escHtml(n.url) : ''}`).join('\n');
+    }
+    out.innerHTML = html;
+  } catch (e) { out.textContent = '오류: ' + e.message; }
+  btn.disabled = false;
 }
 async function deleteFear(code) {
   try { await apiFetch('/api/fear/delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code }) }); toast('삭제됨'); loadFear(); }
