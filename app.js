@@ -2673,6 +2673,68 @@ async function runCompare() {
   }
 }
 
+/* ── 공포 매수 감시 ── */
+async function loadFear() {
+  const box = document.getElementById('fearList');
+  box.innerHTML = '<div style="color:var(--muted);padding:16px">불러오는 중…</div>';
+  try {
+    const d = await apiFetch('/api/fear');
+    const es = (d.entries || []);
+    try {
+      const sc = await apiFetch('/api/fear/scan');
+      document.getElementById('fearScanInfo').textContent =
+        sc.computed_at ? `최근 스캔 ${sc.computed_at} · 후보 ${sc.count || 0}종목` : '아직 스캔 기록 없음';
+    } catch {}
+    if (!es.length) { box.innerHTML = '<div class="empty-msg">등록된 공포 종목이 없습니다. "지금 공포 종목 스캔"을 누르거나, 새벽 자동 스캔에서 RSI≤20+거래량폭증 종목이 잡히면 자동 등록됩니다.</div>'; return; }
+    const stColor = s => s === '손절' ? 'var(--red)' : (s && s.includes('익절') ? 'var(--green)' : 'var(--muted)');
+    box.innerHTML = es.map(e => {
+      const pnl = e.pnl == null ? '' : `<span style="color:${e.pnl >= 0 ? 'var(--red)' : 'var(--blue)'};font-weight:700">${e.pnl >= 0 ? '+' : ''}${e.pnl}%</span>`;
+      const ev = (e.events || []).map(x =>
+        `<div style="font-size:11.5px;color:var(--muted);padding:3px 0;border-top:1px dashed var(--border)"><b style="color:${stColor(x.type)}">${escHtml(x.type)}</b> · ${escHtml(x.date)} — ${escHtml(x.detail)}</div>`).join('');
+      return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:10px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+          <div><b style="font-size:15px">${escHtml(e.name)}</b> <span style="color:var(--muted);font-size:12px">${escHtml(e.code)}</span>
+            <div style="font-size:12px;color:var(--muted);margin-top:2px">등록 ${escHtml(e.added)} · 상태 <b style="color:${stColor(e.status)}">${escHtml(e.status || '보유')}</b></div></div>
+          <button class="fear-del" data-code="${e.code}" style="background:none;border:1px solid var(--border);color:var(--muted);border-radius:7px;padding:4px 9px;cursor:pointer;font-size:12px">🗑 삭제</button>
+        </div>
+        <div class="ai-metrics-row" style="margin-top:8px">
+          <div class="ai-metric"><span>등록가</span><strong>${(e.added_price||0).toLocaleString()}원</strong></div>
+          <div class="ai-metric"><span>현재가</span><strong>${e.current!=null?e.current.toLocaleString()+'원':'-'}</strong></div>
+          <div class="ai-metric"><span>손익</span><strong>${pnl||'-'}</strong></div>
+          <div class="ai-metric"><span>등록시 RSI</span><strong>${e.added_rsi!=null?e.added_rsi:'-'}</strong></div>
+        </div>
+        ${ev ? `<div style="margin-top:8px"><div style="font-size:11px;color:var(--muted);font-weight:700">📢 매도 상황 기록</div>${ev}</div>` : '<div style="font-size:11.5px;color:var(--muted);margin-top:8px">아직 매도 신호 없음 (보유 중)</div>'}
+      </div>`;
+    }).join('');
+    box.querySelectorAll('.fear-del').forEach(b => b.addEventListener('click', () => deleteFear(b.dataset.code)));
+  } catch (e) { box.innerHTML = `<div class="empty-msg">오류: ${escHtml(e.message)}</div>`; }
+}
+async function deleteFear(code) {
+  try { await apiFetch('/api/fear/delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code }) }); toast('삭제됨'); loadFear(); }
+  catch (e) { toast('삭제 실패'); }
+}
+let _fearPoll = null;
+async function runFearScan() {
+  const btn = document.getElementById('fearScanBtn'), load = document.getElementById('fearLoading');
+  try {
+    const before = (await apiFetch('/api/fear/scan')).computed_at || '';
+    const r = await apiFetch('/api/fear/scan', { method: 'POST' });
+    if (r.status === 'running') { toast('이미 스캔 중입니다'); return; }
+    btn.disabled = true; load.classList.remove('hidden');
+    toast('전종목 스캔 시작 — 수 분 후 자동 갱신·카톡 알림');
+    clearInterval(_fearPoll);
+    _fearPoll = setInterval(async () => {
+      try {
+        const sc = await apiFetch('/api/fear/scan');
+        if ((sc.computed_at || '') !== before) {
+          clearInterval(_fearPoll); btn.disabled = false; load.classList.add('hidden');
+          toast(`스캔 완료 · 후보 ${sc.count || 0}종목`); loadFear();
+        }
+      } catch {}
+    }, 15000);
+  } catch (e) { btn.disabled = false; load.classList.add('hidden'); toast('스캔 오류'); }
+}
+
 /* ── 탭 전환 ── */
 function switchTab(tabId) {
   document.querySelectorAll('.tab-pane').forEach(p =>
@@ -2680,6 +2742,7 @@ function switchTab(tabId) {
   document.querySelectorAll('.nav-btn').forEach(b =>
     b.classList.toggle('active', b.dataset.tab === tabId));
   if (['momentum', 'oneq', 'rev'].includes(tabId)) renderRegimeBanners();
+  if (tabId === 'fear') loadFear();
   if (tabId === 'watch') renderWatchlist();
   if (tabId === 'home') document.getElementById('searchInput').focus();
   if (tabId === 'perf') updatePerfPrices().then(hist => renderPerfTab(hist));
@@ -4927,6 +4990,7 @@ const _secInput = document.getElementById('sectorChatInput');
 if (_secInput) _secInput.addEventListener('keydown', e => { if (e.key === 'Enter') sendSectorChat(); });
 
 document.getElementById('fortuneRunBtn').addEventListener('click', runFortune);
+document.getElementById('fearScanBtn').addEventListener('click', runFearScan);
 
 /* ── 초기화 ── */
 loadWatchlistData();

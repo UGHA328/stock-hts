@@ -52,6 +52,10 @@
       <span class="nav-icon">🔥</span>
       <span class="nav-label">급등주</span>
     </button>
+    <button class="nav-btn" data-tab="fear">
+      <span class="nav-icon">😱</span>
+      <span class="nav-label">공포</span>
+    </button>
     <button class="nav-btn" data-tab="oneq">
       <span class="nav-icon">🚀</span>
       <span class="nav-label">1Q</span>
@@ -385,6 +389,18 @@
         <div id="perEmpty" class="empty-msg hidden">데이터를 가져올 수 없습니다. 다시 시도해주세요.</div>
       </div>
 
+      <!-- 공포 매수 탭 -->
+      <div id="tab-fear" class="tab-pane hidden">
+        <div style="font-size:14px;font-weight:700;margin-bottom:4px">😱 공포 매수 감시</div>
+        <p class="sc-desc">시장이 <b>RSI ≤ 20(깊은 과매도)</b> + <b>거래량 20일평균 1.5배↑(투매)</b> 인 종목을 찾습니다. 발견 시 자동 등록·카톡 알림, 이후 매도 신호(절반익절/전량익절/손절)를 기록합니다. <span style="color:var(--muted)">('역발상+개선안' 전략 근거)</span></p>
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
+          <button id="fearScanBtn" class="run-btn" style="background:var(--violet)">🔍 지금 공포 종목 스캔</button>
+          <span id="fearScanInfo" style="font-size:11px;color:var(--muted)"></span>
+        </div>
+        <div id="fearLoading" class="sc-loading hidden"><div class="spinner" style="border-top-color:var(--violet)"></div><p>전종목 스캔 중… (수 분 소요)</p></div>
+        <div id="fearList"></div>
+      </div>
+
       <!-- 백테스트 탭 -->
       <div id="tab-backtest" class="tab-pane hidden">
         <div style="font-size:14px;font-weight:700;margin-bottom:8px">🧪 전략 백테스트</div>
@@ -683,6 +699,6 @@
   </div>
 </div>
 
-<script src="./app.js?v=104"></script>
+<script src="./app.js?v=105"></script>
 </body>
 </html>
