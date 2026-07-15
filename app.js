@@ -3739,7 +3739,7 @@ function escHtml(str) {
 }
 
 /* ── 이벤트 바인딩 ── */
-document.querySelectorAll('.nav-btn').forEach(btn =>
+document.querySelectorAll('.nav-btn[data-tab]').forEach(btn =>
   btn.addEventListener('click', () => switchTab(btn.dataset.tab)));
 
 document.querySelectorAll('.tab-btn').forEach(btn =>
