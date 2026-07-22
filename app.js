@@ -2945,7 +2945,7 @@ async function sendSectorChat() {
   body.scrollTop = body.scrollHeight;
 }
 
-/* ── 거시경제 (FRED/World Bank/yfinance via OpenBB 소스) ── */
+/* ── 거시경제 (FRED/World Bank/yfinance 소스) ── */
 let _macroData = null, _macroChart = null, _macroLine = null, _macroKey = null;
 
 const _regimeCache = {};
@@ -3024,6 +3024,7 @@ async function loadMacro() {
       `갱신 ${d.updated} · 출처 ${d.source}` + (d.has_fred ? ' (FRED 월별)' : ' (무료 폴백 — FRED 키 넣으면 월별 상세)');
     _renderMacroRegion(us, '🇺🇸 미국', 'us', d.us);
     _renderMacroRegion(kr, '🇰🇷 한국', 'kr', d.kr);
+    _renderMacroRegion(document.getElementById('macroOil'), '🛢️ 국제 유가', 'oil', d.oil);
     const first = document.querySelector('#macroUS .macro-card');
     if (first) { first.classList.add('active'); _macroChartShow(first.dataset.region, first.dataset.key); }
   } catch (e) {
@@ -3071,8 +3072,9 @@ function _macroChartShow(region, key) {
   const it = (_macroData[region] || []).find(x => x.key === key);
   if (!it) return;
   document.getElementById('macroChartWrap').classList.remove('hidden');
+  const _rEmoji = region === 'us' ? '🇺🇸' : (region === 'oil' ? '🛢️' : '🇰🇷');
   document.getElementById('macroChartTitle').textContent =
-    `${region === 'us' ? '🇺🇸' : '🇰🇷'} ${it.label} 추이`;
+    `${_rEmoji} ${it.label} 추이`;
   _initMacroChart();
   const d = it.series;
   const data = [];
