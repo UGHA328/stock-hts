@@ -4385,7 +4385,7 @@ async function runNotebookLM() {
     // URL 클립보드 복사 + 서버 저장 + 보고서 미리 캐시
     try { await navigator.clipboard.writeText(dartDocUrl); } catch {}
     fetch(SERVER + '/nlm/store-url', {
-      method: 'POST', headers: { ...HDR, 'Content-Type': 'application/json' },
+      method: 'POST', headers: WL_HDR({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ url: dartDocUrl, company: name }),
     }).catch(() => {});
     fetch(dartDocUrl, { headers: { 'ngrok-skip-browser-warning': '1' } }).catch(() => {});
@@ -4436,7 +4436,7 @@ async function startNlmSetup() {
   const btn = document.querySelector('#aiModalContent button');
   if (btn) { btn.disabled = true; btn.textContent = '⏳ 셋업 진행 중...'; }
   try {
-    const r = await fetch(SERVER + '/nlm/setup', { method: 'POST', headers: HDR });
+    const r = await fetch(SERVER + '/nlm/setup', { method: 'POST', headers: WL_HDR() });
     const d = await r.json();
     const content = document.getElementById('aiModalContent');
     if (content) content.innerHTML += `<div class="ai-impact" style="border-left-color:var(--green);margin-top:10px">✅ ${escHtml(d.message)}</div>`;
