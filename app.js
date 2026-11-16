@@ -219,7 +219,12 @@ function _renderScreenerVersions() {
 
 /* ── Flask 서버 (ngrok) ── */
 const _V = 14; // version
-const SERVER = 'https://bucked-swaddling-revenge.ngrok-free.dev';
+// 백엔드 주소 — 프론트가 서빙되는 출처에 따라 자동 결정:
+//  · GitHub Pages(ugha328.github.io): 백엔드가 없으니 기존 ngrok 공개 URL 사용(원래 동작 유지)
+//  · 그 외(새 배포주소 stock.ugha2425.dpdns.org·localhost 등 = 백엔드가 직접 서빙): 동일 출처('')
+const SERVER = location.hostname.endsWith('github.io')
+  ? 'https://bucked-swaddling-revenge.ngrok-free.dev'
+  : '';
 const HDR = { 'ngrok-skip-browser-warning': '1' };
 
 // 관심종목: 브라우저별 익명 ID (사용자끼리 목록이 섞이지 않도록 서버에 개별 보관)
